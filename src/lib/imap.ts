@@ -38,6 +38,7 @@ export interface EmailHeader {
   starred: boolean;
   size: number;
   snippet?: string;
+  hasAttachment?: boolean;
 }
 
 export interface EmailDetail extends EmailHeader {

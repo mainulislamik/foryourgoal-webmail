@@ -1,108 +1,82 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
-  IconButton,
   Typography,
-  Avatar,
+  IconButton,
   Tooltip,
+  Avatar,
   Button,
-  CircularProgress,
   Chip,
+  Divider,
+  CircularProgress,
   Paper,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArchiveOutlinedIcon from '@mui/icons-material/ArchiveOutlined';
-import ReportGmailerrorredOutlinedIcon from '@mui/icons-material/ReportGmailerrorredOutlined';
 import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
 import MarkEmailUnreadOutlinedIcon from '@mui/icons-material/MarkEmailUnreadOutlined';
-import DriveFileMoveOutlinedIcon from '@mui/icons-material/DriveFileMoveOutlined';
-import LabelOutlinedIcon from '@mui/icons-material/LabelOutlined';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
 import StarIcon from '@mui/icons-material/Star';
 import ReplyOutlinedIcon from '@mui/icons-material/ReplyOutlined';
 import ForwardOutlinedIcon from '@mui/icons-material/ForwardOutlined';
+import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import DownloadIcon from '@mui/icons-material/Download';
-import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import { EmailHeader, EmailDetail } from '@/lib/imap';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import { EmailHeader } from '@/lib/imap';
+
+interface EmailDetail extends EmailHeader {
+  html: string;
+  text: string;
+  attachments?: {
+    filename: string;
+    contentType: string;
+    size: number;
+    partId: string;
+  }[];
+}
 
 interface MailReaderProps {
-  messageHeader: EmailHeader;
-  currentFolder: string;
+  message: EmailHeader;
+  detail: EmailDetail | null;
+  loading: boolean;
   onBack: () => void;
-  onReply: (to: string, subject: string, quoteBody?: string) => void;
-  onForward: (subject: string, quoteBody?: string) => void;
   onAction: (action: string, uids: number[]) => void;
+  onReply: (quote?: string) => void;
+  onForward: () => void;
 }
 
 export default function MailReader({
-  messageHeader,
-  currentFolder,
+  message,
+  detail,
+  loading,
   onBack,
+  onAction,
   onReply,
   onForward,
-  onAction,
 }: MailReaderProps) {
-  const [detail, setDetail] = useState<EmailDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [starred, setStarred] = useState(messageHeader.starred);
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
 
-  useEffect(() => {
-    let isMounted = true;
-    setLoading(true);
+  const sender = message.from[0]?.name || message.from[0]?.address || 'Unknown';
+  const senderEmail = message.from[0]?.address || '';
 
-    fetch(`/api/mail/message/${messageHeader.uid}?folder=${encodeURIComponent(currentFolder)}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (isMounted) {
-          if (data.message) {
-            setDetail(data.message);
-          }
-          setLoading(false);
-        }
-      })
-      .catch((err) => {
-        console.error('Failed to load email detail:', err);
-        if (isMounted) setLoading(false);
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [messageHeader.uid, currentFolder]);
-
-  const handleToggleStar = () => {
-    const nextState = !starred;
-    setStarred(nextState);
-    onAction(nextState ? 'star' : 'unstar', [messageHeader.uid]);
-  };
-
-  const sender = detail?.from[0] || messageHeader.from[0];
-  const senderName = sender?.name || sender?.address || 'Unknown';
-  const senderAddress = sender?.address || '';
-  const initial = senderName.charAt(0).toUpperCase();
-
-  const formatFullDate = (dateStr: string) => {
-    try {
-      const d = new Date(dateStr);
-      return d.toLocaleString([], {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch {
-      return dateStr;
-    }
-  };
+  // Smart Reply suggestions
+  const smartReplies = [
+    'Received with thanks, looking forward to it!',
+    'I will review this and update you shortly.',
+    'Thank you for confirming. Noted!',
+  ];
 
   return (
-    <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', backgroundColor: '#ffffff' }}>
-      {/* Top Toolbar with Back Arrow */}
+    <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      {/* Top Action Toolbar */}
       <Box
         sx={{
           height: 48,
@@ -110,287 +84,288 @@ export default function MailReader({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          borderBottom: '1px solid #e0e2ec',
+          borderBottom: `1px solid ${theme.palette.divider}`,
+          backgroundColor: theme.palette.background.paper,
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Tooltip title="Back to Inbox">
-            <IconButton
-              onClick={onBack}
-              sx={{
-                color: '#444746',
-                backgroundColor: 'rgba(0,0,0,0.04)',
-                '&:hover': { backgroundColor: 'rgba(0,0,0,0.08)' },
-              }}
-            >
-              <ArrowBackIcon />
+          <Tooltip title="Back to inbox (Esc)">
+            <IconButton onClick={onBack} size="small" sx={{ color: theme.palette.text.secondary }}>
+              <ArrowBackIcon fontSize="small" />
             </IconButton>
           </Tooltip>
+
+          <Divider orientation="vertical" flexItem sx={{ mx: 0.5, height: 20, my: 'auto' }} />
+
           <Tooltip title="Archive">
             <IconButton
+              onClick={() => onAction('archive', [message.uid])}
               size="small"
-              onClick={() => {
-                onAction('archive', [messageHeader.uid]);
-                onBack();
-              }}
-              sx={{ color: '#444746' }}
+              sx={{ color: theme.palette.text.secondary }}
             >
               <ArchiveOutlinedIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-          <Tooltip title="Report spam">
-            <IconButton size="small" sx={{ color: '#444746' }}>
-              <ReportGmailerrorredOutlinedIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
           <Tooltip title="Delete">
             <IconButton
+              onClick={() => onAction('delete', [message.uid])}
               size="small"
-              onClick={() => {
-                onAction('delete', [messageHeader.uid]);
-                onBack();
-              }}
-              sx={{ color: '#444746' }}
+              sx={{ color: theme.palette.text.secondary }}
             >
               <DeleteOutlineOutlinedIcon fontSize="small" />
             </IconButton>
           </Tooltip>
           <Tooltip title="Mark as unread">
             <IconButton
+              onClick={() => onAction('markUnread', [message.uid])}
               size="small"
-              onClick={() => {
-                onAction('markUnread', [messageHeader.uid]);
-                onBack();
-              }}
-              sx={{ color: '#444746' }}
+              sx={{ color: theme.palette.text.secondary }}
             >
               <MarkEmailUnreadOutlinedIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Move to">
-            <IconButton size="small" sx={{ color: '#444746' }}>
-              <DriveFileMoveOutlinedIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Labels">
-            <IconButton size="small" sx={{ color: '#444746' }}>
-              <LabelOutlinedIcon fontSize="small" />
             </IconButton>
           </Tooltip>
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Tooltip title="Print all">
-            <IconButton size="small" onClick={() => window.print()} sx={{ color: '#444746' }}>
+          <Tooltip title="Print">
+            <IconButton size="small" onClick={() => window.print()} sx={{ color: theme.palette.text.secondary }}>
               <PrintOutlinedIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="In new window">
-            <IconButton size="small" sx={{ color: '#444746' }}>
-              <OpenInNewIcon fontSize="small" />
             </IconButton>
           </Tooltip>
         </Box>
       </Box>
 
-      {/* Reader Content Body */}
-      <Box sx={{ flex: 1, overflowY: 'auto', p: 3, maxWidth: 1100, mx: 'auto', width: '100%' }}>
+      {/* Message Content Container */}
+      <Box
+        sx={{
+          flex: 1,
+          overflowY: 'auto',
+          p: { xs: 2, sm: 4 },
+          backgroundColor: theme.palette.background.paper,
+        }}
+      >
+        {/* Subject Header */}
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 3 }}>
+          <Typography
+            variant="h5"
+            sx={{
+              fontWeight: 500,
+              fontSize: '1.375rem',
+              color: theme.palette.text.primary,
+              letterSpacing: '-0.2px',
+              wordBreak: 'break-word',
+            }}
+          >
+            {message.subject || '(no subject)'}
+          </Typography>
+
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Tooltip title={message.starred ? 'Starred' : 'Not starred'}>
+              <IconButton
+                size="small"
+                onClick={() => onAction(message.starred ? 'unstar' : 'star', [message.uid])}
+                sx={{ color: message.starred ? '#f4b400' : theme.palette.text.secondary }}
+              >
+                {message.starred ? <StarIcon fontSize="small" /> : <StarBorderIcon fontSize="small" />}
+              </IconButton>
+            </Tooltip>
+          </Box>
+        </Box>
+
+        {/* Sender Card */}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Avatar
+              sx={{
+                width: 42,
+                height: 42,
+                bgcolor: theme.palette.primary.main,
+                color: theme.palette.primary.contrastText,
+                fontWeight: 600,
+                fontSize: '1.1rem',
+              }}
+            >
+              {sender.charAt(0).toUpperCase()}
+            </Avatar>
+
+            <Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
+                  {sender}
+                </Typography>
+                <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                  &lt;{senderEmail}&gt;
+                </Typography>
+              </Box>
+              <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                to me
+              </Typography>
+            </Box>
+          </Box>
+
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 500 }}>
+              {new Date(message.date).toLocaleString([], {
+                dateStyle: 'medium',
+                timeStyle: 'short',
+              })}
+            </Typography>
+            <Tooltip title="Reply">
+              <IconButton size="small" onClick={() => onReply()} sx={{ color: theme.palette.text.secondary }}>
+                <ReplyOutlinedIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        </Box>
+
+        {/* Email Body */}
         {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-            <CircularProgress size={40} sx={{ color: '#0b57d0' }} />
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+            <CircularProgress size={32} sx={{ color: theme.palette.primary.main }} />
           </Box>
         ) : (
-          <>
-            {/* Subject Header */}
-            <Typography
-              variant="h5"
-              sx={{
-                fontWeight: 600,
-                fontSize: '1.4rem',
-                color: '#1f1f1f',
-                mb: 3,
-                wordBreak: 'break-word',
-              }}
-            >
-              {detail?.subject || messageHeader.subject}
-            </Typography>
-
-            {/* Sender Row Card */}
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 3 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Avatar
-                  sx={{
-                    width: 44,
-                    height: 44,
-                    bgcolor: '#0b57d0',
-                    fontSize: '1.2rem',
-                    fontWeight: 600,
-                  }}
-                >
-                  {initial}
-                </Avatar>
-                <Box>
-                  <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1f1f1f' }}>
-                      {senderName}
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: '#5f6368', fontSize: '0.85rem' }}>
-                      &lt;{senderAddress}&gt;
-                    </Typography>
-                  </Box>
-                  <Typography variant="caption" sx={{ color: '#5f6368' }}>
-                    to me
-                  </Typography>
-                </Box>
-              </Box>
-
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Typography variant="caption" sx={{ color: '#5f6368', mr: 1 }}>
-                  {formatFullDate(detail?.date || messageHeader.date)}
-                </Typography>
-                <Tooltip title={starred ? 'Starred' : 'Not starred'}>
-                  <IconButton size="small" onClick={handleToggleStar}>
-                    {starred ? (
-                      <StarIcon sx={{ fontSize: 20, color: '#f4b400' }} />
-                    ) : (
-                      <StarBorderIcon sx={{ fontSize: 20, color: '#5f6368' }} />
-                    )}
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="Reply">
-                  <IconButton
-                    size="small"
-                    onClick={() =>
-                      onReply(
-                        senderAddress,
-                        `Re: ${detail?.subject || messageHeader.subject}`,
-                        detail?.text || detail?.html
-                      )
-                    }
-                  >
-                    <ReplyOutlinedIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </Box>
-            </Box>
-
-            {/* Email Body Content */}
-            <Paper
-              elevation={0}
-              sx={{
-                p: 2,
-                borderRadius: '8px',
-                border: '1px solid #f0f0f0',
-                backgroundColor: '#ffffff',
-                minHeight: 200,
-                color: '#1f1f1f',
-                fontSize: '0.95rem',
-                lineHeight: 1.6,
-                wordBreak: 'break-word',
-                mb: 4,
-                '& a': {
-                  color: '#0b57d0',
-                  textDecoration: 'none',
-                  '&:hover': { textDecoration: 'underline' },
-                },
-                '& img': {
-                  maxWidth: '100%',
-                  height: 'auto',
-                },
-              }}
-            >
-              {detail?.html ? (
-                <div dangerouslySetInnerHTML={{ __html: detail.html }} />
-              ) : (
-                <Typography
-                  component="pre"
-                  sx={{
-                    fontFamily: 'inherit',
-                    whiteSpace: 'pre-wrap',
-                    color: '#1f1f1f',
-                  }}
-                >
-                  {detail?.text || messageHeader.snippet || '(No content)'}
-                </Typography>
-              )}
-            </Paper>
+          <Box sx={{ minHeight: 180, mb: 4 }}>
+            {detail?.html ? (
+              <Box
+                component="div"
+                dangerouslySetInnerHTML={{ __html: detail.html }}
+                sx={{
+                  color: theme.palette.text.primary,
+                  fontFamily: 'inherit',
+                  '& a': { color: theme.palette.primary.main },
+                  '& img': { maxWidth: '100%', height: 'auto' },
+                  '& table': { maxWidth: '100%' },
+                  bgcolor: isDark ? 'transparent' : 'inherit',
+                }}
+              />
+            ) : (
+              <Typography
+                variant="body1"
+                sx={{
+                  whiteSpace: 'pre-wrap',
+                  color: theme.palette.text.primary,
+                  lineHeight: 1.6,
+                }}
+              >
+                {detail?.text || message.snippet || ''}
+              </Typography>
+            )}
 
             {/* Attachments Section */}
             {detail?.attachments && detail.attachments.length > 0 && (
-              <Box sx={{ mb: 4 }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#444746', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <AttachFileIcon fontSize="small" />
-                  {detail.attachments.length} Attachment{detail.attachments.length > 1 ? 's' : ''}
+              <Box sx={{ mt: 4, pt: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1.5, color: theme.palette.text.primary }}>
+                  Attachments ({detail.attachments.length})
                 </Typography>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
-                  {detail.attachments.map((att, idx) => (
-                    <Chip
-                      key={idx}
-                      icon={<DownloadIcon />}
-                      label={`${att.filename || 'attachment'} (${Math.round(att.size / 1024)} KB)`}
+                  {detail.attachments.map((att, i) => (
+                    <Paper
+                      key={i}
                       variant="outlined"
-                      clickable
-                      sx={{ borderRadius: '8px', py: 2 }}
-                    />
+                      sx={{
+                        p: 1.5,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1.5,
+                        borderRadius: '12px',
+                        maxWidth: 260,
+                        backgroundColor: isDark ? '#2b2d30' : '#f8fafd',
+                      }}
+                    >
+                      <AttachFileIcon sx={{ color: theme.palette.text.secondary }} />
+                      <Box sx={{ overflow: 'hidden', flex: 1 }}>
+                        <Typography noWrap variant="body2" sx={{ fontWeight: 500, color: theme.palette.text.primary }}>
+                          {att.filename}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                          {(att.size / 1024).toFixed(1)} KB
+                        </Typography>
+                      </Box>
+                      <Tooltip title="Download">
+                        <IconButton size="small">
+                          <DownloadIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </Paper>
                   ))}
                 </Box>
               </Box>
             )}
-
-            {/* Bottom Gmail Reply and Forward Action Pills */}
-            <Box sx={{ display: 'flex', gap: 2, mt: 2, mb: 4 }}>
-              <Button
-                variant="outlined"
-                startIcon={<ReplyOutlinedIcon />}
-                onClick={() =>
-                  onReply(
-                    senderAddress,
-                    `Re: ${detail?.subject || messageHeader.subject}`,
-                    detail?.text || detail?.html
-                  )
-                }
-                sx={{
-                  borderRadius: '24px',
-                  borderColor: '#747775',
-                  color: '#444746',
-                  px: 3,
-                  py: 1,
-                  fontWeight: 500,
-                  '&:hover': {
-                    borderColor: '#1f1f1f',
-                    backgroundColor: '#f5f5f5',
-                  },
-                }}
-              >
-                Reply
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<ForwardOutlinedIcon />}
-                onClick={() =>
-                  onForward(
-                    `Fwd: ${detail?.subject || messageHeader.subject}`,
-                    detail?.text || detail?.html
-                  )
-                }
-                sx={{
-                  borderRadius: '24px',
-                  borderColor: '#747775',
-                  color: '#444746',
-                  px: 3,
-                  py: 1,
-                  fontWeight: 500,
-                  '&:hover': {
-                    borderColor: '#1f1f1f',
-                    backgroundColor: '#f5f5f5',
-                  },
-                }}
-              >
-                Forward
-              </Button>
-            </Box>
-          </>
+          </Box>
         )}
+
+        {/* AI Smart Reply Suggestions */}
+        <Box sx={{ mb: 4 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+            <AutoAwesomeIcon sx={{ fontSize: 18, color: '#fbbc05' }} />
+            <Typography variant="caption" sx={{ fontWeight: 600, color: theme.palette.text.secondary }}>
+              Suggested Smart Replies
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
+            {smartReplies.map((reply, idx) => (
+              <Chip
+                key={idx}
+                label={reply}
+                onClick={() => onReply(reply)}
+                clickable
+                variant="outlined"
+                sx={{
+                  borderRadius: '18px',
+                  py: 2,
+                  px: 0.5,
+                  fontSize: '0.875rem',
+                  fontWeight: 500,
+                  borderColor: isDark ? '#444746' : '#c2e7ff',
+                  backgroundColor: isDark ? '#2b2d30' : '#f0f7ff',
+                  color: isDark ? '#a8c7fa' : '#0b57d0',
+                  '&:hover': {
+                    backgroundColor: isDark ? '#3c4043' : '#e0f0ff',
+                    borderColor: theme.palette.primary.main,
+                  },
+                }}
+              />
+            ))}
+          </Box>
+        </Box>
+
+        {/* Bottom Reply / Forward Action Buttons */}
+        <Box sx={{ display: 'flex', gap: 2, pt: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
+          <Button
+            variant="outlined"
+            startIcon={<ReplyOutlinedIcon />}
+            onClick={() => onReply()}
+            sx={{
+              borderRadius: '24px',
+              px: 3,
+              borderColor: theme.palette.divider,
+              color: theme.palette.text.primary,
+              '&:hover': {
+                borderColor: theme.palette.primary.main,
+                backgroundColor: isDark ? '#303236' : '#f1f3f4',
+              },
+            }}
+          >
+            Reply
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<ForwardOutlinedIcon />}
+            onClick={onForward}
+            sx={{
+              borderRadius: '24px',
+              px: 3,
+              borderColor: theme.palette.divider,
+              color: theme.palette.text.primary,
+              '&:hover': {
+                borderColor: theme.palette.primary.main,
+                backgroundColor: isDark ? '#303236' : '#f1f3f4',
+              },
+            }}
+          >
+            Forward
+          </Button>
+        </Box>
       </Box>
     </Box>
   );

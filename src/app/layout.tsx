@@ -5,8 +5,9 @@ import ThemeRegistry from '@/components/ThemeRegistry';
 export const metadata: Metadata = {
   title: 'ForYourGoal Mail',
   description: 'Enterprise Webmail powered by ForYourGoal',
+  manifest: '/manifest.json',
   icons: {
-    icon: '/favicon.ico',
+    icon: '/icon.svg',
   },
 };
 
