@@ -1,0 +1,32 @@
+services:
+  webmail:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: foryourgoal-webmail
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3015:3015"
+      - "172.17.0.1:3015:3015"
+    environment:
+      - NODE_ENV=production
+      - PORT=3015
+      - IMAP_HOST=mailserver
+      - IMAP_PORT=993
+      - IMAP_SECURE=true
+      - SMTP_HOST=mailserver
+      - SMTP_PORT=587
+      - SMTP_SECURE=false
+      - AUTH_SECRET=foryourgoal_mail_secret_key_2026_material_workspace_secure_token_993!
+      - NEXT_PUBLIC_APP_NAME=ForYourGoal Mail
+    networks:
+      - stockwhisk_updated_default
+    volumes:
+      - webmail-avatars:/app/public/avatars
+
+networks:
+  stockwhisk_updated_default:
+    external: true
+
+volumes:
+  webmail-avatars:

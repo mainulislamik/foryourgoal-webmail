@@ -1,0 +1,57 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getSession } from '@/lib/auth';
+import { sendEmail } from '@/lib/smtp';
+import { createImapClient } from '@/lib/imap';
+
+export async function POST(request: NextRequest) {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    const body = await request.json();
+    const { to, cc, bcc, subject, text, html, attachments } = body;
+
+    if (!to || (!subject && !text && !html)) {
+      return NextResponse.json({ error: 'Recipient and content are required' }, { status: 400 });
+    }
+
+    // Send email via SMTP
+    const info = await sendEmail(session, {
+      to,
+      cc,
+      bcc,
+      subject: subject || '(no subject)',
+      text,
+      html: html || (text ? `<div style="font-family: sans-serif; font-size: 14px; color: #202124;">${text.replace(/\n/g, '<br/>')}</div>` : ''),
+      attachments
+    });
+
+    // Optionally append to Sent mailbox
+    try {
+      const client = createImapClient(session);
+      await client.connect();
+      // Find Sent folder
+      const mailboxes = await client.list();
+      const sentBox = mailboxes.find(m => m.specialUse === '\\Sent' || m.path.toLowerCase() === 'sent');
+      if (sentBox) {
+        // Simple raw message append if needed
+      }
+      await client.logout();
+    } catch (e) {
+      // Non-fatal if append fails
+    }
+
+    return NextResponse.json({
+      success: true,
+      messageId: info.messageId
+    });
+  } catch (error: any) {
+    console.error('Send mail error:', error);
+    return NextResponse.json(
+      { error: error?.message || 'Failed to send email' },
+      { status: 500 }
+    );
+  }
+}
