@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -53,6 +53,12 @@ export default function SettingsDialog({
   const [uploading, setUploading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [currentAvatar, setCurrentAvatar] = useState<string | undefined>(user.avatarUrl);
+
+  useEffect(() => {
+    setCurrentAvatar(user.avatarUrl);
+  }, [user.avatarUrl]);
+
   const [signatureText, setSignatureText] = useState(
     signature || `<b>${user.displayName}</b><br>IT Specialist | ForYourGoal<br><a href="https://foryourgoal.com">foryourgoal.com</a>`
   );
@@ -77,6 +83,7 @@ export default function SettingsDialog({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to upload image');
 
+      setCurrentAvatar(data.avatarUrl);
       onAvatarUpdated(data.avatarUrl);
       setSuccessMsg('Avatar updated successfully!');
     } catch (err: any) {
@@ -148,7 +155,7 @@ export default function SettingsDialog({
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
               <Box sx={{ position: 'relative' }}>
                 <Avatar
-                  src={user.avatarUrl}
+                  src={currentAvatar || user.avatarUrl}
                   sx={{
                     width: 84,
                     height: 84,

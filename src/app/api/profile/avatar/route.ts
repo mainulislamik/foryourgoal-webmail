@@ -4,29 +4,31 @@ import fs from 'fs/promises';
 import path from 'path';
 
 export async function POST(request: NextRequest) {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   try {
+    const session = await getSession();
+    if (!session || !session.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const formData = await request.formData();
-    const file = formData.get('file') as File | null;
+    const file = (formData.get('file') || formData.get('avatar')) as File | null;
 
     if (!file) {
-      return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
+      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
+    // Sanitize filename
     const safeName = session.email.replace(/[^a-zA-Z0-9.-]/g, '_');
     const ext = file.type === 'image/png' ? '.png' : file.type === 'image/webp' ? '.webp' : '.jpg';
     const filename = `${safeName}${ext}`;
     const uploadDir = path.join(process.cwd(), 'public', 'avatars');
 
     await fs.mkdir(uploadDir, { recursive: true });
-    await fs.writeFile(path.join(uploadDir, filename), buffer);
+    const filePath = path.join(uploadDir, filename);
+    await fs.writeFile(filePath, buffer);
 
     const avatarUrl = `/avatars/${filename}?t=${Date.now()}`;
     return NextResponse.json({ success: true, avatarUrl });
@@ -51,8 +53,8 @@ export async function GET(request: NextRequest) {
   for (const ext of ['.jpg', '.png', '.webp']) {
     try {
       const p = path.join(uploadDir, `${safeName}${ext}`);
-      await fs.access(p);
-      return NextResponse.json({ avatarUrl: `/avatars/${safeName}${ext}` });
+      const stat = await fs.stat(p);
+      return NextResponse.json({ avatarUrl: `/avatars/${safeName}${ext}?t=${Math.floor(stat.mtimeMs)}` });
     } catch (e) {}
   }
 
