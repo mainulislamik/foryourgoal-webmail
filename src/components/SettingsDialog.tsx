@@ -113,9 +113,6 @@ export const getForYourGoalSignatureTemplate = (displayName?: string, email?: st
           <td><a href="mailto:${mail}" style="color: #0284c7; text-decoration: none; font-weight: 500;">${mail}</a></td>
         </tr>
       </table>
-      <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed #cbd5e1; font-size: 11px; color: #94a3b8; font-style: italic;">
-        Confidentiality Notice: This message and any attachments are intended solely for the recipient and may contain confidential information.
-      </div>
     </td>
   </tr>
 </table>`;
