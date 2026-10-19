@@ -385,6 +385,7 @@ export default function MailAppPage() {
         onClose={() => setComposeState((prev) => ({ ...prev, open: false }))}
         onSend={handleSendMail}
         signature={signature}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
 
       {/* Profile & Avatar Settings Modal */}

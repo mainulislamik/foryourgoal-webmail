@@ -23,6 +23,8 @@ services:
       - stockwhisk_updated_default
     volumes:
       - webmail-avatars:/app/public/avatars
+      - webmail-signatures:/app/public/signatures
+      - webmail-data:/app/data
 
 networks:
   stockwhisk_updated_default:
@@ -30,3 +32,5 @@ networks:
 
 volumes:
   webmail-avatars:
+  webmail-signatures:
+  webmail-data:
