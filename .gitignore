@@ -31,5 +31,7 @@ yarn-error.log*
 
 # Tests & artifacts
 *.png
+!public/*.png
+!public/**/*.png
 test-*.py
 test-*.mjs

@@ -125,43 +125,55 @@ export default function TopHeader({
           </IconButton>
         </Tooltip>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, cursor: 'pointer' }}>
-          {/* Google Workspace colorful mail SVG icon */}
+        <Box
+          component="a"
+          href="/"
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.2,
+            textDecoration: 'none',
+            cursor: 'pointer',
+          }}
+        >
+          {/* Official ForYourGoal Logo */}
           <Box
-            component="svg"
-            viewBox="0 0 24 24"
-            sx={{ width: 32, height: 32 }}
-          >
-            <path
-              fill="#4285F4"
-              d="M20 4H4C2.9 4 2 4.9 2 6L12 13L22 6C22 4.9 21.1 4 20 4Z"
-            />
-            <path
-              fill="#EA4335"
-              d="M2 6V18C2 19.1 2.9 20 4 20H8V11L2 6Z"
-            />
-            <path
-              fill="#FBBC05"
-              d="M16 20H20C21.1 20 22 19.1 22 18V6L16 11V20Z"
-            />
-            <path
-              fill="#34A853"
-              d="M8 20H16V11L12 13.8L8 11V20Z"
-            />
-          </Box>
-
-          <Typography
-            variant="h6"
+            component="img"
+            src={theme.palette.mode === 'dark' ? '/brand/for-your-goal-header-dark-background.svg' : '/brand/for-your-goal-header-light-background.svg'}
+            alt="ForYourGoal"
             sx={{
-              fontWeight: 500,
-              fontSize: '1.25rem',
-              letterSpacing: '-0.3px',
-              color: theme.palette.text.primary,
+              height: 30,
+              width: 'auto',
               display: { xs: 'none', sm: 'block' },
             }}
+          />
+          {/* Mobile Mark Only */}
+          <Box
+            component="img"
+            src={theme.palette.mode === 'dark' ? '/brand/fg-mark-dark-background.svg' : '/brand/fg-mark-light-background.svg'}
+            alt="ForYourGoal"
+            sx={{
+              height: 28,
+              width: 'auto',
+              display: { xs: 'block', sm: 'none' },
+            }}
+          />
+          <Box
+            component="span"
+            sx={{
+              fontSize: '0.8rem',
+              fontWeight: 700,
+              px: 0.8,
+              py: 0.2,
+              borderRadius: 1,
+              bgcolor: theme.palette.mode === 'dark' ? 'rgba(36,123,255,0.2)' : 'rgba(36,123,255,0.1)',
+              color: '#247BFF',
+              letterSpacing: '0.5px',
+              textTransform: 'uppercase',
+            }}
           >
-            ForYourGoal <Box component="span" sx={{ fontWeight: 400, color: theme.palette.text.secondary }}>Mail</Box>
-          </Typography>
+            Mail
+          </Box>
         </Box>
       </Box>
 

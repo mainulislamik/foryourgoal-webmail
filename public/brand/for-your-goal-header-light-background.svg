@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1180" height="250" viewBox="20 30 1180 250" role="img" aria-labelledby="title desc">
+<title id="title">FOR YOUR GOAL</title>
+<desc id="desc">FG monogram with an ascending arrow and FOR YOUR GOAL wordmark.</desc>
+<g transform="translate(28 35) scale(0.80)">
+  <defs>
+    <linearGradient id="fygBlue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3547F5"/>
+      <stop offset="100%" stop-color="#06A6FF"/>
+    </linearGradient>
+    <linearGradient id="fygArrow" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0%" stop-color="#174CFF"/>
+      <stop offset="100%" stop-color="#00BDF2"/>
+    </linearGradient>
+  </defs>
+  <!-- Geometric F -->
+  <path d="M48 286 L96 72 C103 42 123 26 155 26 H300 L271 80 H169 C154 80 146 88 142 103 L133 140 H246 L218 193 H121 L105 264 C100 286 81 296 48 286 Z" fill="url(#fygBlue)"/>
+  <!-- G-shaped open circular form -->
+  <path d="M397 121 A79 79 0 1 0 399 225 L399 184 L357 184" fill="none" stroke="#202631" stroke-width="32" stroke-linecap="butt" stroke-linejoin="round"/>
+  <!-- Rising arrow: clear direction of progress -->
+  <path d="M187 263 L398 101 L384 92 L459 51 L439 128 L422 110 L203 278 Z" fill="url(#fygArrow)"/>
+</g>
+<text x="445" y="190" text-anchor="start" font-family="DejaVu Sans, Arial, Helvetica, sans-serif" font-size="72" font-weight="750" letter-spacing="0.9" fill="#202631"><tspan>FOR YOUR </tspan><tspan fill="#247BFF">GOAL</tspan></text>
+</svg>

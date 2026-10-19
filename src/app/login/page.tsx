@@ -20,31 +20,33 @@ import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import LanguageOutlinedIcon from '@mui/icons-material/LanguageOutlined';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 
-// Official Google Workspace Mail styled SVG icon
-function WorkspaceMailIcon() {
+// Official ForYourGoal Brand Logo
+function OfficialBrandLogo({ isDark }: { isDark: boolean }) {
   return (
-    <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path
-        d="M9 12C6.79086 12 5 13.7909 5 16V36C5 38.2091 6.79086 40 9 40H39C41.2091 40 43 38.2091 43 36V16C43 13.7909 41.2091 12 39 12H9Z"
-        fill="#EA4335"
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+      <Box
+        component="img"
+        src={isDark ? '/brand/for-your-goal-header-dark-background.svg' : '/brand/for-your-goal-header-light-background.svg'}
+        alt="ForYourGoal"
+        sx={{ height: { xs: 34, md: 40 }, width: 'auto' }}
       />
-      <path
-        d="M5 16L24 29L43 16V36C43 38.2091 41.2091 40 39 40H9C6.79086 40 5 38.2091 5 36V16Z"
-        fill="#FBBC05"
-      />
-      <path
-        d="M5 16C5 13.7909 6.79086 12 9 12H19L24 16L29 12H39C41.2091 12 43 13.7909 43 16L24 29L5 16Z"
-        fill="#4285F4"
-      />
-      <path
-        d="M5 36V16L18 25L5 36Z"
-        fill="#34A853"
-      />
-      <path
-        d="M43 36V16L30 25L43 36Z"
-        fill="#34A853"
-      />
-    </svg>
+      <Box
+        component="span"
+        sx={{
+          fontSize: '0.85rem',
+          fontWeight: 700,
+          px: 1,
+          py: 0.3,
+          borderRadius: 1,
+          bgcolor: isDark ? 'rgba(36,123,255,0.2)' : 'rgba(36,123,255,0.1)',
+          color: '#247BFF',
+          letterSpacing: '0.5px',
+          textTransform: 'uppercase',
+        }}
+      >
+        Mail
+      </Box>
+    </Box>
   );
 }
 
@@ -136,7 +138,7 @@ export default function LoginPage() {
           }}
         >
           <Box sx={{ mb: { xs: 2.5, md: 3.5 } }}>
-            <WorkspaceMailIcon />
+            <OfficialBrandLogo isDark={isDark} />
           </Box>
 
           <Typography
@@ -173,7 +175,7 @@ export default function LoginPage() {
             }}
           >
             <Typography variant="body2" sx={{ color: isDark ? '#8e918f' : '#747775', fontSize: '0.82rem' }}>
-              Enterprise Google Workspace replica built with Next.js & Material UI
+              Enterprise Webmail powered by ForYourGoal
             </Typography>
           </Box>
         </Box>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+<title id="title">FOR YOUR GOAL favicon</title>
+<defs>
+ <linearGradient id="fg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#3547F5"/><stop offset="100%" stop-color="#06A6FF"/></linearGradient>
+ <linearGradient id="ar" x1="0" y1="1" x2="1" y2="0"><stop offset="0%" stop-color="#174CFF"/><stop offset="100%" stop-color="#00BDF2"/></linearGradient>
+</defs>
+<rect x="1" y="1" width="62" height="62" rx="14" fill="#101321"/>
+<path d="M10 49 L17 16 H36 L32 23 H22 L20 29 H31 L28 36 H18 L15 49 Z" fill="url(#fg)"/>
+<path d="M47 25 A12 12 0 1 0 47 41 L47 34 L40 34" fill="none" stroke="#F5F7FB" stroke-width="4.5" stroke-linecap="butt" stroke-linejoin="round"/>
+<path d="M25 43 L47 24 L43 22 L55 15 L52 28 L49 25 L28 46 Z" fill="url(#ar)"/>
+</svg>

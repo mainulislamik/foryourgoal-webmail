@@ -1,14 +1,24 @@
 {
-  "name": "ForYourGoal Mail",
-  "short_name": "FYG Mail",
-  "description": "Google Workspace Style Enterprise Webmail",
+  "name": "Foryourgoal Image Editing Studio",
+  "short_name": "Foryourgoal",
+  "description": "Enterprise-grade digital image post-production, clipping paths, and commercial retouching.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#0b57d0",
+  "background_color": "#FFFFFF",
+  "theme_color": "#FFFFFF",
   "icons": [
     {
-      "src": "/icon.svg",
+      "src": "/favicon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml"
     }
