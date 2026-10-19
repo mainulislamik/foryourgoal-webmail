@@ -27,12 +27,19 @@ export async function GET() {
 
     try {
       // Try IMAP QUOTA extension (RFC 2087)
+      // Note: ImapFlow normalizes quota values:
+      // storage.used is in bytes, storage.limit is in bytes (or usage/limit depending on format)
       const quota = await client.getQuota();
       if (quota && quota.storage) {
-        const storage = quota.storage;
-        usedBytes = (storage.used || 0) * 1024;
-        if (storage.limit && storage.limit > 0) {
-          limitBytes = storage.limit * 1024;
+        const storage: any = quota.storage;
+        const rawUsed = typeof storage.used === 'number' ? storage.used : (storage.usage || 0);
+        const rawLimit = typeof storage.limit === 'number' ? storage.limit : 0;
+        
+        // ImapFlow already returns bytes, NOT kilobytes.
+        // (Dovecot sends KB over raw IMAP, but ImapFlow parses and multiplies to bytes: 26214400 KB -> 26843545600 bytes = 25 GB)
+        usedBytes = rawUsed;
+        if (rawLimit > 0) {
+          limitBytes = rawLimit;
         }
       }
     } catch (e) {
