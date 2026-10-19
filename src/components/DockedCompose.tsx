@@ -525,8 +525,18 @@ export default function DockedCompose({
                     sx: {
                       borderRadius: '16px',
                       minWidth: 220,
-                      boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.18)',
+                      zIndex: 9999,
                     },
+                  }}
+                  sx={{ zIndex: 9999 }}
+                  anchorOrigin={{
+                    vertical: 'top',
+                    horizontal: 'left',
+                  }}
+                  transformOrigin={{
+                    vertical: 'bottom',
+                    horizontal: 'left',
                   }}
                 >
                   <MenuItem onClick={handleInsertSignature}>
