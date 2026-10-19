@@ -98,8 +98,19 @@ export default function MailAppPage() {
   // Fetch folders
   const fetchFolders = useCallback(() => {
     fetch('/api/mail/folders')
-      .then((res) => res.json())
+      .then((res) => {
+        if (res.status === 401) {
+          window.location.href = '/login';
+          return null;
+        }
+        return res.json();
+      })
       .then((data) => {
+        if (!data) return;
+        if (data.isAuthFailed || (data.error && data.error.includes('Authentication failed'))) {
+          window.location.href = '/login';
+          return;
+        }
         if (data.folders) {
           setFolders(data.folders);
         }
@@ -119,8 +130,19 @@ export default function MailAppPage() {
     }
 
     fetch(`/api/mail/messages?${params.toString()}`)
-      .then((res) => res.json())
+      .then((res) => {
+        if (res.status === 401) {
+          window.location.href = '/login';
+          return null;
+        }
+        return res.json();
+      })
       .then((data) => {
+        if (!data) return;
+        if (data.isAuthFailed || (data.error && data.error.includes('Authentication failed'))) {
+          window.location.href = '/login';
+          return;
+        }
         if (data.messages) {
           setMessages(data.messages);
         }

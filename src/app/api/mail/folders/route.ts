@@ -39,6 +39,12 @@ export async function GET() {
   } catch (error: any) {
     console.error('Error fetching folders:', error);
     try { await client.logout(); } catch (e) {}
-    return NextResponse.json({ error: error?.message || 'Failed to list folders' }, { status: 500 });
+    const isAuth = error?.authenticationFailed || 
+                   error?.message?.includes('AUTHENTICATIONFAILED') || 
+                   error?.message?.includes('Authentication failed');
+    return NextResponse.json(
+      { error: error?.message || 'Failed to list folders', isAuthFailed: Boolean(isAuth) }, 
+      { status: isAuth ? 401 : 500 }
+    );
   }
 }

@@ -130,6 +130,12 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     console.error('Error fetching messages:', error);
     try { await client.logout(); } catch (e) {}
-    return NextResponse.json({ error: error?.message || 'Failed to fetch messages' }, { status: 500 });
+    const isAuth = error?.authenticationFailed || 
+                   error?.message?.includes('AUTHENTICATIONFAILED') || 
+                   error?.message?.includes('Authentication failed');
+    return NextResponse.json(
+      { error: error?.message || 'Failed to fetch messages', isAuthFailed: Boolean(isAuth) }, 
+      { status: isAuth ? 401 : 500 }
+    );
   }
 }
