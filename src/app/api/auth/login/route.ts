@@ -47,8 +47,19 @@ export async function POST(request: NextRequest) {
     return response;
   } catch (error: any) {
     console.error('Login error:', error);
+    let errorMessage = 'Invalid email or password';
+    if (error?.authenticationFailed || 
+        error?.response?.includes('AUTHENTICATIONFAILED') || 
+        error?.message === 'Command failed') {
+      errorMessage = 'Invalid email or password. Please check your credentials.';
+    } else if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timed out')) {
+      errorMessage = 'Connection to mail server timed out. Please try again.';
+    } else if (error?.message) {
+      errorMessage = error.message;
+    }
+
     return NextResponse.json(
-      { error: error?.message || 'Invalid email or password' },
+      { error: errorMessage },
       { status: 401 }
     );
   }
