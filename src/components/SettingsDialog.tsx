@@ -60,8 +60,25 @@ interface SettingsDialogProps {
 }
 
 export const getForYourGoalSignatureTemplate = (displayName?: string, email?: string) => {
-  const name = displayName || 'Imon Khan';
   const mail = email || 'imon.khan@foryourgoal.com';
+  let name = displayName && displayName.trim() ? displayName.trim() : '';
+  if (!name) {
+    const localPart = mail.split('@')[0] || 'User';
+    name = localPart
+      .split(/[._-]/)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  }
+  const role = mail.toLowerCase().startsWith('imon')
+    ? 'IT Specialist &amp; Infrastructure Head'
+    : mail.toLowerCase().startsWith('support')
+    ? 'Customer Support &amp; Help Desk'
+    : mail.toLowerCase().startsWith('sales')
+    ? 'Sales &amp; Client Relations'
+    : mail.toLowerCase().startsWith('billing') || mail.toLowerCase().startsWith('account')
+    ? 'Accounts &amp; Billing'
+    : 'Professional Services';
+
   return `<table cellpadding="0" cellspacing="0" border="0" style="max-width: 580px; font-family: Arial, Helvetica, sans-serif; font-size: 13px; line-height: 1.4; color: #334155; margin-top: 8px;">
   <tr>
     <td style="vertical-align: top; padding-right: 20px; border-right: 2px solid #0284c7; width: 140px;">
@@ -77,7 +94,7 @@ export const getForYourGoalSignatureTemplate = (displayName?: string, email?: st
         ${name}
       </div>
       <div style="font-size: 13px; font-weight: 600; color: #0284c7; margin-bottom: 8px;">
-        IT Specialist &amp; Infrastructure Head
+        ${role}
       </div>
       <div style="font-size: 12px; color: #475569; margin-bottom: 8px;">
         <strong>ForYourGoal</strong> &bull; High-Volume Image Retouching &amp; Creative Media
@@ -156,7 +173,7 @@ export default function SettingsDialog({
   }, [signature, user.displayName, user.email]);
 
   useEffect(() => {
-    if (!isCodeMode && editorRef.current && activeTab === 1) {
+    if (!isCodeMode && editorRef.current && activeTab === 0) {
       if (editorRef.current.innerHTML !== signatureHtml) {
         editorRef.current.innerHTML = signatureHtml;
       }
@@ -295,7 +312,7 @@ export default function SettingsDialog({
   };
 
   const handleSaveSignature = () => {
-    setSignature(signatureHtml);
+    setSignature(signatureHtml, user.email);
     setSuccessMsg('Email signature saved and synchronized to your account!');
   };
 
@@ -392,6 +409,24 @@ export default function SettingsDialog({
                 >
                   Load ForYourGoal Official Template
                 </Button>
+              </Box>
+
+              {/* Mailbox Isolation Banner & Direct Edit Tip */}
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1.5,
+                  p: 1.5,
+                  borderRadius: '12px',
+                  backgroundColor: isDark ? 'rgba(2, 132, 199, 0.12)' : '#f0f9ff',
+                  border: `1px solid ${isDark ? 'rgba(2, 132, 199, 0.3)' : '#bae6fd'}`,
+                }}
+              >
+                <SecurityIcon sx={{ fontSize: 20, color: '#0284c7', flexShrink: 0 }} />
+                <Typography variant="caption" sx={{ color: isDark ? '#7dd3fc' : '#0369a1', lineHeight: 1.5 }}>
+                  <strong>Mailbox-Level Isolated:</strong> Any edits saved here are strictly bound to <strong>{user.email}</strong>. Modifying your template will <em>never</em> alter default templates or affect signatures of other team members. Click directly inside the editor below to edit text, title, phone, or links.
+                </Typography>
               </Box>
 
               {/* Rich WYSIWYG Toolbar */}
@@ -561,8 +596,16 @@ export default function SettingsDialog({
                   />
                 ) : (
                   <Box
-                    ref={editorRef}
+                    ref={(node: HTMLDivElement | null) => {
+                      (editorRef as any).current = node;
+                      if (node && !isCodeMode && activeTab === 0) {
+                        if (node.innerHTML !== signatureHtml) {
+                          node.innerHTML = signatureHtml;
+                        }
+                      }
+                    }}
                     contentEditable
+                    suppressContentEditableWarning
                     onInput={handleEditorInput}
                     onBlur={handleEditorInput}
                     sx={{

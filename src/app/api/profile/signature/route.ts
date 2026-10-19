@@ -19,12 +19,13 @@ export async function GET(request: NextRequest) {
       const data = await fs.readFile(filePath, 'utf-8');
       const parsed = JSON.parse(data);
       return NextResponse.json({
+        email: session.email,
         signature: parsed.signature || '',
         updatedAt: parsed.updatedAt || null,
       });
     } catch (e: any) {
       if (e.code === 'ENOENT') {
-        return NextResponse.json({ signature: '', updatedAt: null });
+        return NextResponse.json({ email: session.email, signature: '', updatedAt: null });
       }
       throw e;
     }

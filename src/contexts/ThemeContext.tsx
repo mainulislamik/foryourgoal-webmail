@@ -10,7 +10,7 @@ interface ThemeContextType {
   density: DensityMode;
   setDensity: (d: DensityMode) => void;
   signature: string;
-  setSignature: (s: string) => void;
+  setSignature: (s: string, email?: string) => void;
   keyboardShortcutsEnabled: boolean;
   setKeyboardShortcutsEnabled: (enabled: boolean) => void;
 }
@@ -44,41 +44,16 @@ export function ThemeContextProvider({ children }: { children: React.ReactNode }
     if (savedDensity) {
       setDensityState(savedDensity);
     }
-    const savedSig = localStorage.getItem('fyg_webmail_signature');
-    if (savedSig !== null) {
-      setSignatureState(savedSig);
-    }
 
-    // Synchronize signature with backend profile
+    // Synchronize signature with backend profile for currently authenticated user
     fetch('/api/profile/signature')
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data && typeof data.signature === 'string' && data.signature.trim()) {
           setSignatureState(data.signature);
-          localStorage.setItem('fyg_webmail_signature', data.signature);
-        } else if (savedSig === null) {
-          // If neither server nor local has a signature, set default placeholder
-          const defaultSig = `<div style="font-family: Arial, sans-serif; font-size: 14px; color: #1e293b; line-height: 1.5;">
-  <p style="margin: 0 0 8px 0; color: #64748b;">--<br>Best Regards,</p>
-  <table cellpadding="0" cellspacing="0" border="0" style="max-width: 580px; font-family: Arial, sans-serif;">
-    <tr>
-      <td style="vertical-align: top; padding-right: 18px; border-right: 2px solid #0284c7;">
-        <img src="https://foryourgoal.com/images/foryourgoal-logo.png" alt="ForYourGoal Logo" width="125" style="display: block; width: 125px; height: auto;" />
-      </td>
-      <td style="vertical-align: top; padding-left: 18px;">
-        <div style="font-size: 16px; font-weight: bold; color: #0f172a; margin-bottom: 2px;">Imon Khan</div>
-        <div style="font-size: 13px; font-weight: 600; color: #0284c7; margin-bottom: 6px;">IT Specialist &amp; Infrastructure Head</div>
-        <div style="font-size: 12px; color: #475569; margin-bottom: 4px;"><strong>ForYourGoal</strong> &bull; Creative Post-Production &amp; Tech</div>
-        <div style="font-size: 12px; color: #64748b; line-height: 1.4;">
-          📞 <strong>Phone:</strong> <a href="tel:+8801613511887" style="color: #0284c7; text-decoration: none;">+880 1613-511887</a><br>
-          🌐 <strong>Web:</strong> <a href="https://foryourgoal.com" target="_blank" style="color: #0284c7; text-decoration: none;">foryourgoal.com</a><br>
-          ✉️ <strong>Email:</strong> <a href="mailto:imon.khan@foryourgoal.com" style="color: #0284c7; text-decoration: none;">imon.khan@foryourgoal.com</a>
-        </div>
-      </td>
-    </tr>
-  </table>
-</div>`;
-          setSignatureState(defaultSig);
+          if (data.email) {
+            localStorage.setItem(`fyg_webmail_signature_${data.email}`, data.signature);
+          }
         }
       })
       .catch(() => {});
@@ -101,8 +76,11 @@ export function ThemeContextProvider({ children }: { children: React.ReactNode }
     localStorage.setItem('fyg_webmail_density', d);
   };
 
-  const setSignature = (s: string) => {
+  const setSignature = (s: string, email?: string) => {
     setSignatureState(s);
+    if (email) {
+      localStorage.setItem(`fyg_webmail_signature_${email}`, s);
+    }
     localStorage.setItem('fyg_webmail_signature', s);
     // Persist to server API
     fetch('/api/profile/signature', {
