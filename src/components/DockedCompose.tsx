@@ -19,6 +19,7 @@ import {
   DialogContent,
   DialogActions,
   TextField,
+  Chip,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import CloseIcon from '@mui/icons-material/Close';
@@ -44,6 +45,8 @@ import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 interface ComposeState {
   open: boolean;
   to: string;
+  cc?: string;
+  bcc?: string;
   subject: string;
   body: string;
   inReplyTo?: string;
@@ -52,7 +55,14 @@ interface ComposeState {
 interface DockedComposeProps {
   state: ComposeState;
   onClose: () => void;
-  onSend: (data: { to: string; subject: string; body: string }) => void;
+  onSend: (data: {
+    to: string;
+    cc?: string;
+    bcc?: string;
+    subject: string;
+    body: string;
+    attachments?: Array<{ filename: string; content: string; contentType: string; size: number }>;
+  }) => void;
   signature?: string;
   onOpenSettings?: () => void;
 }
@@ -68,6 +78,10 @@ export default function DockedCompose({
   const isDark = theme.palette.mode === 'dark';
 
   const [to, setTo] = useState(state.to || '');
+  const [cc, setCc] = useState(state.cc || '');
+  const [bcc, setBcc] = useState(state.bcc || '');
+  const [showCc, setShowCc] = useState(Boolean(state.cc));
+  const [showBcc, setShowBcc] = useState(Boolean(state.bcc));
   const [subject, setSubject] = useState(state.subject || '');
   const [isMinimized, setIsMinimized] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
@@ -83,12 +97,23 @@ export default function DockedCompose({
   const [uploadingImage, setUploadingImage] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
+  // File attachments
+  const [attachments, setAttachments] = useState<
+    Array<{ filename: string; content: string; contentType: string; size: number }>
+  >([]);
+  const fileAttachmentInputRef = useRef<HTMLInputElement>(null);
+
   const editorRef = useRef<HTMLDivElement>(null);
 
   // Sync state changes from props
   useEffect(() => {
     setTo(state.to || '');
+    setCc(state.cc || '');
+    setBcc(state.bcc || '');
+    setShowCc(Boolean(state.cc));
+    setShowBcc(Boolean(state.bcc));
     setSubject(state.subject || '');
+    setAttachments([]);
     if (editorRef.current) {
       let initialBody = state.body || '';
       if (signature && !initialBody.includes('data-fyg-signature') && !initialBody.includes(signature)) {
@@ -110,9 +135,46 @@ export default function DockedCompose({
     const htmlContent = editorRef.current?.innerHTML || '';
     onSend({
       to,
+      cc: showCc && cc.trim() ? cc.trim() : undefined,
+      bcc: showBcc && bcc.trim() ? bcc.trim() : undefined,
       subject,
       body: htmlContent,
+      attachments: attachments.length > 0 ? attachments : undefined,
     });
+  };
+
+  const handleFileAttach = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    Array.from(files).forEach((file) => {
+      if (file.size > 25 * 1024 * 1024) {
+        alert(`File "${file.name}" exceeds the 25MB attachment limit.`);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64 = event.target?.result as string;
+        setAttachments((prev) => [
+          ...prev,
+          {
+            filename: file.name,
+            content: base64,
+            contentType: file.type || 'application/octet-stream',
+            size: file.size,
+          },
+        ]);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    if (fileAttachmentInputRef.current) {
+      fileAttachmentInputRef.current.value = '';
+    }
+  };
+
+  const removeAttachment = (indexToRemove: number) => {
+    setAttachments((prev) => prev.filter((_, idx) => idx !== indexToRemove));
   };
 
   // AI "Help me write" draft generator
@@ -338,7 +400,7 @@ export default function DockedCompose({
                 borderBottom: `1px solid ${theme.palette.divider}`,
               }}
             >
-              <Typography variant="body2" sx={{ color: theme.palette.text.secondary, width: 44 }}>
+              <Typography variant="body2" sx={{ color: theme.palette.text.secondary, width: 44, fontWeight: 500 }}>
                 To
               </Typography>
               <InputBase
@@ -349,7 +411,131 @@ export default function DockedCompose({
                 fullWidth
                 sx={{ fontSize: '0.875rem', color: theme.palette.text.primary }}
               />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 1, flexShrink: 0 }}>
+                {!showCc && (
+                  <Typography
+                    variant="caption"
+                    onClick={() => setShowCc(true)}
+                    id="compose-toggle-cc"
+                    sx={{
+                      cursor: 'pointer',
+                      color: theme.palette.text.secondary,
+                      fontWeight: 600,
+                      px: 0.8,
+                      py: 0.3,
+                      borderRadius: 1,
+                      userSelect: 'none',
+                      transition: 'all 0.15s ease',
+                      '&:hover': {
+                        color: theme.palette.primary.main,
+                        bgcolor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+                      },
+                    }}
+                  >
+                    Cc
+                  </Typography>
+                )}
+                {!showBcc && (
+                  <Typography
+                    variant="caption"
+                    onClick={() => setShowBcc(true)}
+                    id="compose-toggle-bcc"
+                    sx={{
+                      cursor: 'pointer',
+                      color: theme.palette.text.secondary,
+                      fontWeight: 600,
+                      px: 0.8,
+                      py: 0.3,
+                      borderRadius: 1,
+                      userSelect: 'none',
+                      transition: 'all 0.15s ease',
+                      '&:hover': {
+                        color: theme.palette.primary.main,
+                        bgcolor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+                      },
+                    }}
+                  >
+                    Bcc
+                  </Typography>
+                )}
+              </Box>
             </Box>
+
+            {/* Cc Row */}
+            {showCc && (
+              <Box
+                sx={{
+                  px: 2,
+                  py: 0.5,
+                  display: 'flex',
+                  alignItems: 'center',
+                  borderBottom: `1px solid ${theme.palette.divider}`,
+                  bgcolor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)',
+                }}
+              >
+                <Typography variant="body2" sx={{ color: theme.palette.text.secondary, width: 44, fontWeight: 500 }}>
+                  Cc
+                </Typography>
+                <InputBase
+                  id="compose-cc-input"
+                  value={cc}
+                  onChange={(e) => setCc(e.target.value)}
+                  placeholder="Carbon copy recipients"
+                  fullWidth
+                  autoFocus
+                  sx={{ fontSize: '0.875rem', color: theme.palette.text.primary }}
+                />
+                <IconButton
+                  size="small"
+                  onClick={() => {
+                    setShowCc(false);
+                    setCc('');
+                  }}
+                  title="Remove Cc"
+                  sx={{ p: 0.5, color: theme.palette.text.secondary }}
+                >
+                  <CloseIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+              </Box>
+            )}
+
+            {/* Bcc Row */}
+            {showBcc && (
+              <Box
+                sx={{
+                  px: 2,
+                  py: 0.5,
+                  display: 'flex',
+                  alignItems: 'center',
+                  borderBottom: `1px solid ${theme.palette.divider}`,
+                  bgcolor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)',
+                }}
+              >
+                <Typography variant="body2" sx={{ color: theme.palette.text.secondary, width: 44, fontWeight: 500 }}>
+                  Bcc
+                </Typography>
+                <InputBase
+                  id="compose-bcc-input"
+                  value={bcc}
+                  onChange={(e) => setBcc(e.target.value)}
+                  placeholder="Blind carbon copy recipients"
+                  fullWidth
+                  autoFocus
+                  sx={{ fontSize: '0.875rem', color: theme.palette.text.primary }}
+                />
+                <IconButton
+                  size="small"
+                  onClick={() => {
+                    setShowBcc(false);
+                    setBcc('');
+                  }}
+                  title="Remove Bcc"
+                  sx={{ p: 0.5, color: theme.palette.text.secondary }}
+                >
+                  <CloseIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+              </Box>
+            )}
 
             {/* Subject Row */}
             <Box
@@ -392,6 +578,38 @@ export default function DockedCompose({
                 '& a': { color: '#0284c7' },
               }}
             />
+
+            {/* Attached Files Chips */}
+            {attachments.length > 0 && (
+              <Box
+                sx={{
+                  px: 2,
+                  py: 1,
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 1,
+                  maxHeight: 100,
+                  overflowY: 'auto',
+                  borderTop: `1px solid ${theme.palette.divider}`,
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                }}
+              >
+                {attachments.map((file, idx) => (
+                  <Chip
+                    key={idx}
+                    icon={<AttachFileIcon sx={{ fontSize: 16 }} />}
+                    label={`${file.filename} (${(file.size / 1024).toFixed(0)} KB)`}
+                    size="small"
+                    onDelete={() => removeAttachment(idx)}
+                    sx={{
+                      borderRadius: '8px',
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                      fontSize: '0.75rem',
+                    }}
+                  />
+                ))}
+              </Box>
+            )}
 
             {/* Bottom Action Bar */}
             <Box
@@ -583,10 +801,21 @@ export default function DockedCompose({
                   </IconButton>
                 </Tooltip>
                 <Tooltip title="Attach files">
-                  <IconButton size="small" sx={{ color: theme.palette.text.secondary, p: 0.5 }}>
+                  <IconButton
+                    size="small"
+                    onClick={() => fileAttachmentInputRef.current?.click()}
+                    sx={{ color: theme.palette.text.secondary, p: 0.5 }}
+                  >
                     <AttachFileIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
+                <input
+                  type="file"
+                  ref={fileAttachmentInputRef}
+                  hidden
+                  multiple
+                  onChange={handleFileAttach}
+                />
               </Box>
 
               {/* Discard Button */}

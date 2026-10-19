@@ -48,11 +48,15 @@ export default function MailAppPage() {
   const [composeState, setComposeState] = useState<{
     open: boolean;
     to: string;
+    cc?: string;
+    bcc?: string;
     subject: string;
     body: string;
   }>({
     open: false,
     to: '',
+    cc: '',
+    bcc: '',
     subject: '',
     body: '',
   });
@@ -247,7 +251,14 @@ export default function MailAppPage() {
     router.refresh();
   };
 
-  const handleSendMail = async (data: { to: string; subject: string; body: string }) => {
+  const handleSendMail = async (data: {
+    to: string;
+    cc?: string;
+    bcc?: string;
+    subject: string;
+    body: string;
+    attachments?: Array<{ filename: string; content: string; contentType: string; size: number }>;
+  }) => {
     try {
       const res = await fetch('/api/mail/send', {
         method: 'POST',

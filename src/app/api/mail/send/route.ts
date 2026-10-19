@@ -17,6 +17,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Recipient and content are required' }, { status: 400 });
     }
 
+    // Format attachments if provided
+    const formattedAttachments = Array.isArray(attachments)
+      ? attachments.map((att: any) => ({
+          filename: att.filename,
+          content: typeof att.content === 'string' && att.content.includes(';base64,')
+            ? Buffer.from(att.content.split(';base64,')[1], 'base64')
+            : typeof att.content === 'string'
+            ? Buffer.from(att.content, 'base64')
+            : att.content,
+          contentType: att.contentType,
+        }))
+      : undefined;
+
     // Send email via SMTP
     const info = await sendEmail(session, {
       to,
@@ -25,7 +38,7 @@ export async function POST(request: NextRequest) {
       subject: subject || '(no subject)',
       text,
       html: html || (text ? `<div style="font-family: sans-serif; font-size: 14px; color: #202124;">${text.replace(/\n/g, '<br/>')}</div>` : ''),
-      attachments
+      attachments: formattedAttachments,
     });
 
     // Optionally append to Sent mailbox
