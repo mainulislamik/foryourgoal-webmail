@@ -1,5 +1,5 @@
 'use client';
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Button,
@@ -40,6 +40,37 @@ export default function LeftSidebar({
 }: LeftSidebarProps) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
+
+  const [quota, setQuota] = useState<{
+    usedFormatted: string;
+    totalFormatted: string;
+    percentage: number;
+    details?: string;
+  }>({
+    usedFormatted: '0.08 GB',
+    totalFormatted: 'VPS Storage',
+    percentage: 1,
+  });
+
+  useEffect(() => {
+    let mounted = true;
+    fetch('/api/mail/quota')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (mounted && data && data.usedFormatted) {
+          setQuota({
+            usedFormatted: data.usedFormatted,
+            totalFormatted: data.totalFormatted,
+            percentage: data.percentage ?? 1,
+            details: data.details,
+          });
+        }
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const getUnread = (pathName: string) => {
     const f = folders.find(
@@ -223,28 +254,43 @@ export default function LeftSidebar({
         </List>
       </Box>
 
-      {/* Storage Indicator */}
+      {/* Dynamic Storage Indicator */}
       {!collapsed && (
-        <Box sx={{ px: 1, py: 1.5 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.8 }}>
-            <CloudQueueIcon sx={{ fontSize: 18, color: theme.palette.text.secondary }} />
-            <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 500 }}>
-              0.08 GB of 15 GB used
-            </Typography>
+        <Tooltip
+          title={
+            quota.details
+              ? quota.details
+              : `${quota.usedFormatted} used of ${quota.totalFormatted} allocated storage on Linux VPS.`
+          }
+          arrow
+          placement="top"
+        >
+          <Box sx={{ px: 1, py: 1.5, cursor: 'pointer' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.8 }}>
+              <CloudQueueIcon sx={{ fontSize: 18, color: theme.palette.text.secondary }} />
+              <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 500 }}>
+                {quota.usedFormatted} of {quota.totalFormatted} used
+              </Typography>
+            </Box>
+            <LinearProgress
+              variant="determinate"
+              value={Math.max(1, Math.min(100, quota.percentage))}
+              sx={{
+                height: 4,
+                borderRadius: 2,
+                backgroundColor: isDark ? '#3c4043' : '#e0e2ec',
+                '& .MuiLinearProgress-bar': {
+                  backgroundColor:
+                    quota.percentage > 90
+                      ? theme.palette.error.main
+                      : quota.percentage > 75
+                      ? theme.palette.warning.main
+                      : theme.palette.primary.main,
+                },
+              }}
+            />
           </Box>
-          <LinearProgress
-            variant="determinate"
-            value={1}
-            sx={{
-              height: 4,
-              borderRadius: 2,
-              backgroundColor: isDark ? '#3c4043' : '#e0e2ec',
-              '& .MuiLinearProgress-bar': {
-                backgroundColor: theme.palette.primary.main,
-              },
-            }}
-          />
-        </Box>
+        </Tooltip>
       )}
     </Box>
   );
