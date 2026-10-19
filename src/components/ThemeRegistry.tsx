@@ -20,7 +20,7 @@ function InnerThemeRegistry({ children }: { children: React.ReactNode }) {
 
 export default function ThemeRegistry({ children }: { children: React.ReactNode }) {
   return (
-    <AppRouterCacheProvider options={{ enableCssLayer: true }}>
+    <AppRouterCacheProvider>
       <ThemeContextProvider>
         <InnerThemeRegistry>{children}</InnerThemeRegistry>
       </ThemeContextProvider>
