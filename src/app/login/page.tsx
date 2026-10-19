@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Box,
-  Paper,
+  Card,
+  CardContent,
   Typography,
   TextField,
   Button,
@@ -12,50 +13,26 @@ import {
   Alert,
   InputAdornment,
   IconButton,
-  Link,
+  Chip,
   useTheme,
 } from '@mui/material';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
-import LanguageOutlinedIcon from '@mui/icons-material/LanguageOutlined';
-import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
-
-// Official ForYourGoal Brand Logo
-function OfficialBrandLogo({ isDark }: { isDark: boolean }) {
-  return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-      <Box
-        component="img"
-        src={isDark ? '/brand/for-your-goal-header-dark-background.svg' : '/brand/for-your-goal-header-light-background.svg'}
-        alt="ForYourGoal"
-        sx={{ height: { xs: 34, md: 40 }, width: 'auto' }}
-      />
-      <Box
-        component="span"
-        sx={{
-          fontSize: '0.85rem',
-          fontWeight: 700,
-          px: 1,
-          py: 0.3,
-          borderRadius: 1,
-          bgcolor: isDark ? 'rgba(36,123,255,0.2)' : 'rgba(36,123,255,0.1)',
-          color: '#247BFF',
-          letterSpacing: '0.5px',
-          textTransform: 'uppercase',
-        }}
-      >
-        Mail
-      </Box>
-    </Box>
-  );
-}
+import MailOutlineIcon from '@mui/icons-material/MailOutline';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import LoginIcon from '@mui/icons-material/Login';
+import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined';
+import Brightness4Icon from '@mui/icons-material/Brightness4';
+import Brightness7Icon from '@mui/icons-material/Brightness7';
+import { useThemeMode } from '@/contexts/ThemeContext';
 
 export default function LoginPage() {
   const router = useRouter();
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
+  const { mode, toggleTheme } = useThemeMode();
+  const isDark = mode === 'dark';
 
-  const [email, setEmail] = useState('imon.khan@foryourgoal.com');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -63,7 +40,7 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
+    if (!email.trim() || !password) {
       setErrorMsg('Please enter both your email and password');
       return;
     }
@@ -96,204 +73,237 @@ export default function LoginPage() {
       sx={{
         minHeight: '100vh',
         width: '100vw',
-        overflowY: 'auto',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: isDark ? '#131314' : '#f0f4f9',
-        p: { xs: 2, sm: 3, md: 4 },
+        bgcolor: isDark ? '#0b0f19' : '#f8fafc',
+        backgroundImage: isDark
+          ? 'radial-gradient(ellipse at 50% 0%, rgba(37,99,235,0.12) 0%, transparent 70%)'
+          : 'radial-gradient(ellipse at 50% 0%, rgba(37,99,235,0.08) 0%, transparent 70%)',
+        p: { xs: 2, sm: 3 },
+        position: 'relative',
         boxSizing: 'border-box',
       }}
     >
-      {/* Main Google-Style M3 Container Card */}
-      <Paper
+      {/* Top Bar with Theme Toggle */}
+      <Box
+        sx={{
+          position: 'absolute',
+          top: { xs: 16, sm: 24 },
+          right: { xs: 16, sm: 24 },
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+        }}
+      >
+        <IconButton
+          onClick={toggleTheme}
+          sx={{
+            bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+            border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}`,
+            p: 1,
+            color: isDark ? '#94a3b8' : '#64748b',
+            '&:hover': {
+              bgcolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+              color: isDark ? '#f8fafc' : '#0f172a',
+            },
+          }}
+          title={isDark ? 'Switch to Light mode' : 'Switch to Dark mode'}
+        >
+          {isDark ? <Brightness7Icon fontSize="small" /> : <Brightness4Icon fontSize="small" />}
+        </IconButton>
+      </Box>
+
+      {/* Main Login Card */}
+      <Card
         elevation={0}
         sx={{
           width: '100%',
-          maxWidth: { xs: 440, md: 920 },
-          minHeight: { md: 460 },
-          borderRadius: '28px',
-          backgroundColor: isDark ? '#1e1f20' : '#ffffff',
-          border: isDark ? '1px solid #3c4043' : '1px solid #e0e2ec',
+          maxWidth: 440,
+          borderRadius: '20px',
+          bgcolor: isDark ? '#111827' : '#ffffff',
+          border: `1px solid ${isDark ? '#1f2937' : '#e2e8f0'}`,
           boxShadow: isDark
-            ? '0 8px 32px rgba(0,0,0,0.4)'
-            : '0 4px 24px rgba(0,0,0,0.06)',
-          display: 'flex',
-          flexDirection: { xs: 'column', md: 'row' },
+            ? '0 20px 40px -15px rgba(0, 0, 0, 0.7)'
+            : '0 20px 40px -15px rgba(15, 23, 42, 0.08)',
           overflow: 'hidden',
-          p: { xs: 3.5, sm: 4.5, md: 6 },
-          gap: { xs: 3, md: 6 },
-          boxSizing: 'border-box',
         }}
       >
-        {/* Left Section: Branding & Titles */}
+        {/* Accent Top Border */}
         <Box
           sx={{
-            flex: { md: 1 },
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'flex-start',
-            alignItems: 'flex-start',
+            height: 4,
+            width: '100%',
+            background: 'linear-gradient(90deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%)',
           }}
-        >
-          <Box sx={{ mb: { xs: 2.5, md: 3.5 } }}>
-            <OfficialBrandLogo isDark={isDark} />
-          </Box>
+        />
 
-          <Typography
-            variant="h4"
-            sx={{
-              fontFamily: "'Google Sans', 'Roboto', sans-serif",
-              fontWeight: 400,
-              fontSize: { xs: '1.75rem', sm: '2.1rem', md: '2.25rem' },
-              color: isDark ? '#e3e3e3' : '#1f1f1f',
-              letterSpacing: '-0.5px',
-              mb: 1.5,
-            }}
-          >
-            Sign in
-          </Typography>
+        <CardContent sx={{ p: { xs: 3, sm: 4.5 } }}>
+          {/* Brand Header */}
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3.5 }}>
+            <Box
+              component="img"
+              src={isDark ? '/brand/for-your-goal-header-dark-background.svg' : '/brand/for-your-goal-header-light-background.svg'}
+              alt="ForYourGoal"
+              sx={{
+                height: 40,
+                width: 'auto',
+                mb: 2,
+              }}
+            />
 
-          <Typography
-            variant="body1"
-            sx={{
-              color: isDark ? '#c4c7c5' : '#444746',
-              fontSize: '1rem',
-              lineHeight: 1.5,
-              mb: 2,
-            }}
-          >
-            to continue to ForYourGoal Mail
-          </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <Typography
+                variant="h5"
+                sx={{
+                  fontWeight: 700,
+                  color: isDark ? '#f8fafc' : '#0f172a',
+                  letterSpacing: '-0.02em',
+                }}
+              >
+                Sign in to Webmail
+              </Typography>
+              <Chip
+                label="MAIL"
+                size="small"
+                sx={{
+                  fontWeight: 700,
+                  fontSize: '0.68rem',
+                  height: 22,
+                  bgcolor: isDark ? 'rgba(37,99,235,0.2)' : 'rgba(37,99,235,0.1)',
+                  color: '#2563eb',
+                  border: '1px solid rgba(37,99,235,0.25)',
+                }}
+              />
+            </Box>
 
-          <Box
-            sx={{
-              mt: 'auto',
-              display: { xs: 'none', md: 'block' },
-              pt: 4,
-            }}
-          >
-            <Typography variant="body2" sx={{ color: isDark ? '#8e918f' : '#747775', fontSize: '0.82rem' }}>
-              Enterprise Webmail powered by ForYourGoal
+            <Typography
+              variant="body2"
+              sx={{
+                color: isDark ? '#94a3b8' : '#64748b',
+                textAlign: 'center',
+                fontSize: '0.88rem',
+              }}
+            >
+              Enter your credentials to access your secure mailbox
             </Typography>
           </Box>
-        </Box>
 
-        {/* Right Section: Form Fields & Actions */}
-        <Box
-          sx={{
-            flex: { md: 1.2 },
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-          }}
-        >
+          {/* Error Message */}
           {errorMsg && (
             <Alert
               severity="error"
               sx={{
                 mb: 3,
                 borderRadius: '12px',
-                fontSize: '0.9rem',
-                border: isDark ? '1px solid #8c1d18' : '1px solid #f9dedc',
+                fontSize: '0.85rem',
+                border: isDark ? '1px solid #7f1d1d' : '1px solid #fecaca',
+                bgcolor: isDark ? 'rgba(127,29,29,0.2)' : '#fef2f2',
+                color: isDark ? '#fca5a5' : '#991b1b',
               }}
             >
               {errorMsg}
             </Alert>
           )}
 
-          <Box component="form" onSubmit={handleSubmit} noValidate sx={{ width: '100%' }}>
+          {/* Form */}
+          <Box component="form" onSubmit={handleSubmit} noValidate>
             {/* Email Field */}
-            <Box sx={{ mb: 3 }}>
+            <Box sx={{ mb: 2.5 }}>
+              <Typography
+                component="label"
+                htmlFor="email"
+                sx={{
+                  display: 'block',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  color: isDark ? '#e2e8f0' : '#334155',
+                  mb: 0.8,
+                }}
+              >
+                Email Address
+              </Typography>
               <TextField
-                fullWidth
-                id="email-input"
+                id="email"
                 name="email"
-                label="Email or phone"
-                variant="outlined"
+                type="email"
+                fullWidth
+                required
+                autoComplete="email"
+                autoFocus
+                disabled={loading}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                disabled={loading}
-                autoComplete="email"
-                InputLabelProps={{
-                  shrink: true,
-                  sx: {
-                    color: isDark ? '#c4c7c5' : '#444746',
-                    '&.Mui-focused': { color: isDark ? '#a8c7fa' : '#0b57d0' },
-                  },
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <MailOutlineIcon sx={{ color: isDark ? '#64748b' : '#94a3b8', fontSize: 20 }} />
+                    </InputAdornment>
+                  ),
                 }}
                 sx={{
                   '& .MuiOutlinedInput-root': {
-                    borderRadius: '8px',
-                    backgroundColor: isDark ? '#1e1f20' : '#ffffff',
+                    borderRadius: '12px',
+                    bgcolor: isDark ? '#1f2937' : '#f8fafc',
                     '& fieldset': {
-                      borderColor: isDark ? '#444746' : '#747775',
+                      borderColor: isDark ? '#374151' : '#e2e8f0',
                     },
                     '&:hover fieldset': {
-                      borderColor: isDark ? '#e3e3e3' : '#1f1f1f',
+                      borderColor: isDark ? '#4b5563' : '#cbd5e1',
                     },
                     '&.Mui-focused fieldset': {
-                      borderColor: isDark ? '#a8c7fa' : '#0b57d0',
-                      borderWidth: '2px',
+                      borderColor: '#2563eb',
+                      borderWidth: '1.5px',
                     },
                   },
                   '& .MuiInputBase-input': {
-                    color: isDark ? '#e3e3e3' : '#1f1f1f',
-                    padding: '16px 14px',
-                    fontSize: '1rem',
+                    fontSize: '0.92rem',
+                    color: isDark ? '#f8fafc' : '#0f172a',
+                    py: 1.4,
                   },
                 }}
               />
-              <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-start' }}>
-                <Link
-                  component="button"
-                  type="button"
-                  variant="body2"
-                  underline="none"
-                  sx={{
-                    color: isDark ? '#a8c7fa' : '#0b57d0',
-                    fontWeight: 500,
-                    fontSize: '0.875rem',
-                    cursor: 'pointer',
-                    '&:hover': { textDecoration: 'underline' },
-                  }}
-                  onClick={() => setEmail('imon.khan@foryourgoal.com')}
-                >
-                  Forgot email?
-                </Link>
-              </Box>
             </Box>
 
             {/* Password Field */}
-            <Box sx={{ mb: 3 }}>
+            <Box sx={{ mb: 3.5 }}>
+              <Typography
+                component="label"
+                htmlFor="password"
+                sx={{
+                  display: 'block',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  color: isDark ? '#e2e8f0' : '#334155',
+                  mb: 0.8,
+                }}
+              >
+                Password
+              </Typography>
               <TextField
-                fullWidth
-                id="password-input"
+                id="password"
                 name="password"
-                label="Enter your password"
                 type={showPassword ? 'text' : 'password'}
-                variant="outlined"
+                fullWidth
+                required
+                autoComplete="current-password"
+                disabled={loading}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                disabled={loading}
-                autoComplete="current-password"
-                InputLabelProps={{
-                  shrink: true,
-                  sx: {
-                    color: isDark ? '#c4c7c5' : '#444746',
-                    '&.Mui-focused': { color: isDark ? '#a8c7fa' : '#0b57d0' },
-                  },
-                }}
                 InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <LockOutlinedIcon sx={{ color: isDark ? '#64748b' : '#94a3b8', fontSize: 20 }} />
+                    </InputAdornment>
+                  ),
                   endAdornment: (
                     <InputAdornment position="end">
                       <IconButton
-                        aria-label="toggle password visibility"
                         onClick={() => setShowPassword(!showPassword)}
                         edge="end"
                         size="small"
-                        sx={{ color: isDark ? '#c4c7c5' : '#747775' }}
+                        sx={{ color: isDark ? '#94a3b8' : '#64748b' }}
                       >
                         {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
                       </IconButton>
@@ -302,164 +312,110 @@ export default function LoginPage() {
                 }}
                 sx={{
                   '& .MuiOutlinedInput-root': {
-                    borderRadius: '8px',
-                    backgroundColor: isDark ? '#1e1f20' : '#ffffff',
+                    borderRadius: '12px',
+                    bgcolor: isDark ? '#1f2937' : '#f8fafc',
                     '& fieldset': {
-                      borderColor: isDark ? '#444746' : '#747775',
+                      borderColor: isDark ? '#374151' : '#e2e8f0',
                     },
                     '&:hover fieldset': {
-                      borderColor: isDark ? '#e3e3e3' : '#1f1f1f',
+                      borderColor: isDark ? '#4b5563' : '#cbd5e1',
                     },
                     '&.Mui-focused fieldset': {
-                      borderColor: isDark ? '#a8c7fa' : '#0b57d0',
-                      borderWidth: '2px',
+                      borderColor: '#2563eb',
+                      borderWidth: '1.5px',
                     },
                   },
                   '& .MuiInputBase-input': {
-                    color: isDark ? '#e3e3e3' : '#1f1f1f',
-                    padding: '16px 14px',
-                    fontSize: '1rem',
+                    fontSize: '0.92rem',
+                    color: isDark ? '#f8fafc' : '#0f172a',
+                    py: 1.4,
                   },
                 }}
               />
             </Box>
 
-            {/* Guest Mode Informational Text */}
-            <Typography
-              variant="body2"
-              sx={{
-                color: isDark ? '#8e918f' : '#5f6368',
-                fontSize: '0.875rem',
-                lineHeight: 1.45,
-                mb: 4,
-              }}
-            >
-              Not your computer? Use Guest mode to sign in privately.{' '}
-              <Link
-                href="#"
-                underline="none"
-                sx={{
-                  color: isDark ? '#a8c7fa' : '#0b57d0',
-                  fontWeight: 500,
-                  '&:hover': { textDecoration: 'underline' },
-                }}
-              >
-                Learn more about using Guest mode
-              </Link>
-            </Typography>
-
-            {/* Actions: Create account & Next */}
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                pt: 1,
-              }}
-            >
-              <Button
-                type="button"
-                variant="text"
-                sx={{
-                  color: isDark ? '#a8c7fa' : '#0b57d0',
-                  textTransform: 'none',
-                  fontWeight: 600,
-                  fontSize: '0.92rem',
-                  px: 1.5,
-                  borderRadius: '20px',
-                  '&:hover': {
-                    backgroundColor: isDark ? 'rgba(168,199,250,0.08)' : 'rgba(11,87,208,0.06)',
-                  },
-                }}
-              >
-                Create account
-              </Button>
-
-              <Button
-                type="submit"
-                variant="contained"
-                disabled={loading}
-                sx={{
-                  borderRadius: '24px',
-                  px: 3.8,
-                  py: 1.15,
-                  minWidth: 100,
-                  backgroundColor: isDark ? '#a8c7fa' : '#0b57d0',
-                  color: isDark ? '#062e6f' : '#ffffff',
-                  fontWeight: 600,
-                  fontSize: '0.92rem',
-                  textTransform: 'none',
-                  boxShadow: 'none',
-                  '&:hover': {
-                    backgroundColor: isDark ? '#8ab4f8' : '#0842a0',
-                    boxShadow: 'none',
-                  },
-                }}
-              >
-                {loading ? (
-                  <CircularProgress size={20} sx={{ color: isDark ? '#062e6f' : '#ffffff' }} />
+            {/* Sign In Button */}
+            <Button
+              type="submit"
+              fullWidth
+              variant="contained"
+              disabled={loading}
+              startIcon={
+                loading ? (
+                  <CircularProgress size={20} color="inherit" />
                 ) : (
-                  'Next'
-                )}
-              </Button>
-            </Box>
+                  <LoginIcon sx={{ fontSize: 20 }} />
+                )
+              }
+              sx={{
+                py: 1.4,
+                borderRadius: '12px',
+                fontSize: '0.95rem',
+                fontWeight: 600,
+                textTransform: 'none',
+                bgcolor: '#2563eb',
+                backgroundImage: 'linear-gradient(180deg, #3b82f6 0%, #2563eb 100%)',
+                boxShadow: '0 4px 12px rgba(37,99,235,0.3)',
+                '&:hover': {
+                  bgcolor: '#1d4ed8',
+                  backgroundImage: 'linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%)',
+                  boxShadow: '0 6px 16px rgba(37,99,235,0.4)',
+                },
+                '&.Mui-disabled': {
+                  bgcolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.12)',
+                  color: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.26)',
+                },
+              }}
+            >
+              {loading ? 'Authenticating...' : 'Sign In'}
+            </Button>
           </Box>
-        </Box>
-      </Paper>
+        </CardContent>
+      </Card>
 
-      {/* Google-Style Footer */}
+      {/* Security Info & Copyright Footer */}
       <Box
         sx={{
-          width: '100%',
-          maxWidth: { xs: 440, md: 920 },
-          mt: 2.5,
-          px: 2,
+          mt: 3.5,
           display: 'flex',
-          flexDirection: { xs: 'column', sm: 'row' },
+          flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 1.5,
-          boxSizing: 'border-box',
+          gap: 1.2,
+          textAlign: 'center',
         }}
       >
-        {/* Language selector button */}
         <Box
           sx={{
-            display: 'flex',
+            display: 'inline-flex',
             alignItems: 'center',
             gap: 0.8,
-            cursor: 'pointer',
-            p: '6px 12px',
-            borderRadius: '16px',
-            '&:hover': {
-              backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-            },
+            px: 1.5,
+            py: 0.5,
+            borderRadius: '20px',
+            bgcolor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)',
+            border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
           }}
         >
-          <LanguageOutlinedIcon sx={{ fontSize: 18, color: isDark ? '#8e918f' : '#5f6368' }} />
-          <Typography sx={{ fontSize: '0.8rem', color: isDark ? '#c4c7c5' : '#444746', fontWeight: 500 }}>
-            English (United States)
+          <ShieldOutlinedIcon sx={{ fontSize: 15, color: '#10b981' }} />
+          <Typography
+            sx={{
+              fontSize: '0.75rem',
+              color: isDark ? '#94a3b8' : '#64748b',
+              fontWeight: 500,
+            }}
+          >
+            TLS 1.3 Encrypted • Enterprise IMAP &amp; SMTP Gateway
           </Typography>
-          <ArrowDropDownIcon sx={{ fontSize: 18, color: isDark ? '#8e918f' : '#5f6368' }} />
         </Box>
 
-        {/* Footer links */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 3.5 }}>
-          {['Help', 'Privacy', 'Terms'].map((link) => (
-            <Link
-              key={link}
-              href="#"
-              underline="none"
-              sx={{
-                fontSize: '0.78rem',
-                color: isDark ? '#8e918f' : '#5f6368',
-                '&:hover': { color: isDark ? '#e3e3e3' : '#1f1f1f' },
-              }}
-            >
-              {link}
-            </Link>
-          ))}
-        </Box>
+        <Typography
+          sx={{
+            fontSize: '0.75rem',
+            color: isDark ? '#64748b' : '#94a3b8',
+          }}
+        >
+          &copy; {new Date().getFullYear()} ForYourGoal. All rights reserved.
+        </Typography>
       </Box>
     </Box>
   );
