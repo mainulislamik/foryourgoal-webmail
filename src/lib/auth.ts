@@ -10,6 +10,8 @@ export interface UserSession {
   password?: string;
   displayName?: string;
   avatarUrl?: string;
+  isMasterAuth?: boolean;
+  impersonatedBy?: string;
 }
 
 export const COOKIE_NAME = 'mail_session';

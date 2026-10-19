@@ -19,6 +19,9 @@ services:
       - SMTP_SECURE=false
       - AUTH_SECRET=foryourgoal_mail_secret_key_2026_material_workspace_secure_token_993!
       - NEXT_PUBLIC_APP_NAME=ForYourGoal Mail
+      - DOVECOT_MASTER_USER=master_admin
+      - DOVECOT_MASTER_PASSWORD=stockwhisk_master_2026
+      - SSO_SECRET=foryourgoal_mail_secret_key_2026_material_workspace_secure_token_993!
     networks:
       - stockwhisk_updated_default
     volumes:

@@ -28,7 +28,9 @@ export async function GET() {
     user: {
       email: session.email,
       displayName: session.displayName || session.email,
-      avatarUrl
+      avatarUrl,
+      isMasterAuth: session.isMasterAuth,
+      impersonatedBy: session.impersonatedBy,
     }
   });
 }

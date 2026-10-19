@@ -16,13 +16,19 @@ export interface SendMailOptions {
 }
 
 export async function sendEmail(session: UserSession, options: SendMailOptions) {
+  const isMaster = !!session.isMasterAuth;
+  const masterUser = process.env.DOVECOT_MASTER_USER || 'master_admin';
+  const masterPass = process.env.DOVECOT_MASTER_PASSWORD || 'stockwhisk_master_2026';
+  const authUser = isMaster ? `${session.email}*${masterUser}` : session.email;
+  const authPass = isMaster ? masterPass : (session.password || '');
+
   const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST || '127.0.0.1',
     port: parseInt(process.env.SMTP_PORT || '587', 10),
     secure: process.env.SMTP_SECURE === 'true',
     auth: {
-      user: session.email,
-      pass: session.password || ''
+      user: authUser,
+      pass: authPass
     },
     tls: {
       rejectUnauthorized: false

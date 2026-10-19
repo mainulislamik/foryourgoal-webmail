@@ -27,6 +27,8 @@ export default function MailAppPage() {
     email: string;
     displayName: string;
     avatarUrl?: string;
+    isMasterAuth?: boolean;
+    impersonatedBy?: string;
   } | null>(null);
 
   const [loadingSession, setLoadingSession] = useState(true);
@@ -295,6 +297,33 @@ export default function MailAppPage() {
         bgcolor: theme.palette.background.default,
       }}
     >
+      {/* Admin SSO banner */}
+      {(user.isMasterAuth || user.impersonatedBy) && (
+        <Box
+          sx={{
+            bgcolor: '#1a73e8',
+            color: '#fff',
+            px: 2,
+            py: 0.75,
+            fontSize: '0.8125rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            zIndex: 1300,
+          }}
+        >
+          <span>
+            Admin Direct Access: Logged in as <strong>{user.email}</strong>
+            {' '}(via {user.impersonatedBy || 'Admin Console'})
+          </span>
+          <a
+            href="https://admin.foryourgoal.com/users"
+            style={{ color: '#fff', fontWeight: 600, textDecoration: 'underline', marginLeft: 'auto' }}
+          >
+            Return to Admin
+          </a>
+        </Box>
+      )}
       {/* Google Workspace Header */}
       <TopHeader
         user={user}
