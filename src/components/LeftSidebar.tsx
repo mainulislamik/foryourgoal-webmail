@@ -24,6 +24,7 @@ import CloudQueueIcon from '@mui/icons-material/CloudQueue';
 import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined';
 import CreateNewFolderOutlinedIcon from '@mui/icons-material/CreateNewFolderOutlined';
 import AddIcon from '@mui/icons-material/Add';
+import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline';
 import {
   Dialog,
   DialogTitle,
@@ -34,12 +35,14 @@ import {
   IconButton,
 } from '@mui/material';
 import { FolderInfo } from '@/lib/imap';
+import ContactsDialog from '@/components/ContactsDialog';
 
 interface LeftSidebarProps {
   currentFolder: string;
   folders: FolderInfo[];
   onSelectFolder: (folder: string) => void;
   onOpenCompose: () => void;
+  onComposeContact: (email: string) => void;
   onRefreshFolders?: () => void;
   collapsed?: boolean;
 }
@@ -49,6 +52,7 @@ export default function LeftSidebar({
   folders,
   onSelectFolder,
   onOpenCompose,
+  onComposeContact,
   onRefreshFolders,
   collapsed = false,
 }: LeftSidebarProps) {
@@ -58,6 +62,7 @@ export default function LeftSidebar({
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [creatingFolder, setCreatingFolder] = useState(false);
+  const [contactsOpen, setContactsOpen] = useState(false);
 
   const [quota, setQuota] = useState<{
     usedFormatted: string;
@@ -158,6 +163,13 @@ export default function LeftSidebar({
       icon: <ReportGmailerrorredOutlinedIcon fontSize="small" />,
       unread: getUnread('Junk'),
     },
+    {
+      id: '__contacts__',
+      label: 'Contacts',
+      icon: <PeopleOutlineIcon fontSize="small" />,
+      unread: 0,
+      action: () => setContactsOpen(true),
+    },
   ];
 
   return (
@@ -218,12 +230,18 @@ export default function LeftSidebar({
         <List sx={{ p: 0 }}>
           {navItems.map((item) => {
             const isActive =
-              currentFolder.toLowerCase() === item.id.toLowerCase();
+              !('action' in item) && currentFolder.toLowerCase() === item.id.toLowerCase();
 
             return (
               <ListItem key={item.id} disablePadding sx={{ mb: 0.5 }}>
                 <ListItemButton
-                  onClick={() => onSelectFolder(item.id)}
+                  onClick={() => {
+                    if ('action' in item && item.action) {
+                      item.action();
+                    } else {
+                      onSelectFolder(item.id);
+                    }
+                  }}
                   sx={{
                     borderRadius: '24px',
                     height: 36,
@@ -471,6 +489,13 @@ export default function LeftSidebar({
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Contacts Manager Dialog */}
+      <ContactsDialog
+        open={contactsOpen}
+        onClose={() => setContactsOpen(false)}
+        onComposeContact={onComposeContact}
+      />
     </Box>
   );
 }

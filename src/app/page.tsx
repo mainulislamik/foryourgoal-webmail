@@ -362,6 +362,9 @@ export default function MailAppPage() {
           onOpenCompose={() =>
             setComposeState({ open: true, to: '', subject: '', body: '' })
           }
+          onComposeContact={(email) =>
+            setComposeState({ open: true, to: email, subject: '', body: '' })
+          }
           onRefreshFolders={() => fetchFolders()}
           collapsed={sidebarCollapsed}
         />

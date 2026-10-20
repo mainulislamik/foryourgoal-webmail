@@ -20,6 +20,8 @@ import {
   DialogActions,
   TextField,
   Chip,
+  List,
+  ListItem,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import CloseIcon from '@mui/icons-material/Close';
@@ -44,6 +46,33 @@ import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import PriorityHighIcon from '@mui/icons-material/PriorityHigh';
 import DoneAllIcon from '@mui/icons-material/DoneAll';
+import ScheduleSendIcon from '@mui/icons-material/ScheduleSend';
+import ArticleOutlinedIcon from '@mui/icons-material/ArticleOutlined';
+import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
+
+
+const CANNED_TEMPLATES = [
+  {
+    title: 'Project Proposal Follow-up',
+    subject: 'Follow-up: Project Discussion & Next Milestones',
+    body: 'Dear Client,<br><br>Thank you for our productive conversation earlier. Following up on the discussed items, please review the proposed scope, technical architecture, and timelines.<br><br>We look forward to your valuable feedback.<br><br>Best regards,<br><b>ForYourGoal Team</b>',
+  },
+  {
+    title: 'Invoice Due Reminder',
+    subject: 'Friendly Reminder: Invoice Payment Due',
+    body: 'Dear Client,<br><br>This is a polite reminder that payment for the recent milestone is scheduled. Please find the details attached.<br><br>If already settled, please ignore this notice.<br><br>Warm regards,<br><b>ForYourGoal Accounts</b>',
+  },
+  {
+    title: 'Meeting Confirmation',
+    subject: 'Confirmed: Meeting Schedule & Video Link',
+    body: 'Hi there,<br><br>This is to confirm our meeting. We have reserved the calendar slot and look forward to discussing the project deliverables.<br><br>Google Meet / Teams link will be active 5 minutes prior.<br><br>Best regards,<br><b>ForYourGoal Team</b>',
+  },
+  {
+    title: 'Client Onboarding Welcome',
+    subject: 'Welcome to ForYourGoal — Getting Started',
+    body: 'Dear Partner,<br><br>Welcome aboard! We are thrilled to partner with you. Our engineering team is currently provisioning your workspace and dedicated resources.<br><br>Feel free to reach out anytime.<br><br>Sincerely,<br><b>ForYourGoal Operations</b>',
+  },
+];
 
 interface ComposeState {
   open: boolean;
@@ -115,6 +144,71 @@ export default function DockedCompose({
 
   // Auto-save draft status
   const [draftSavedText, setDraftSavedText] = useState<string>('');
+  
+  // Schedule Send state
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const [scheduleDateTime, setScheduleDateTime] = useState('');
+  const [sendMenuAnchor, setSendMenuAnchor] = useState<null | HTMLElement>(null);
+
+  // Canned Templates menu
+  const [templateAnchor, setTemplateAnchor] = useState<null | HTMLElement>(null);
+
+  // Contacts Autocomplete state
+  const [contactSuggestions, setContactSuggestions] = useState<Array<{ name: string; email: string }>>([]);
+  const [activeSuggestionField, setActiveSuggestionField] = useState<'to' | 'cc' | 'bcc' | null>(null);
+  const [filteredSuggestions, setFilteredSuggestions] = useState<Array<{ name: string; email: string }>>([]);
+
+  // Load contacts for autocomplete
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('foryourgoal_contacts');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            setContactSuggestions(parsed.map((c: any) => ({ name: c.name, email: c.email })));
+          }
+        }
+      } catch (e) {}
+    }
+  }, [state.open]);
+
+  const handleApplyTemplate = (tmpl: { title: string; subject: string; body: string }) => {
+    setSubject(tmpl.subject);
+    if (editorRef.current) {
+      const sigBlock = signature ? `<div data-fyg-signature="true"><br><br>${signature}</div>` : '';
+      editorRef.current.innerHTML = tmpl.body + sigBlock;
+    }
+    setTemplateAnchor(null);
+  };
+
+  const handleScheduleSendSubmit = () => {
+    if (!scheduleDateTime) {
+      alert('Please select date and time');
+      return;
+    }
+    const htmlContent = editorRef.current?.innerHTML || '';
+    // Store in scheduled emails
+    try {
+      const existing = JSON.parse(localStorage.getItem('foryourgoal_scheduled_emails') || '[]');
+      existing.push({
+        id: Date.now(),
+        to,
+        cc: showCc && cc.trim() ? cc.trim() : undefined,
+        bcc: showBcc && bcc.trim() ? bcc.trim() : undefined,
+        subject,
+        body: htmlContent,
+        scheduledAt: scheduleDateTime,
+        createdAt: new Date().toISOString(),
+      });
+      localStorage.setItem('foryourgoal_scheduled_emails', JSON.stringify(existing));
+      alert(`Email scheduled to be sent on ${new Date(scheduleDateTime).toLocaleString()}!`);
+      onClose();
+    } catch (e) {
+      console.error(e);
+    }
+    setScheduleDialogOpen(false);
+  };
 
   const editorRef = useRef<HTMLDivElement>(null);
 
@@ -142,7 +236,17 @@ export default function DockedCompose({
     if (editorRef.current) editorRef.current.focus();
   };
 
-  const handleSend = () => {
+  // Undo Send state
+  const [isSendingCountdown, setIsSendingCountdown] = useState(false);
+  const [sendCountdown, setSendCountdown] = useState(5);
+  const sendTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const sendIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const executeSend = () => {
+    setIsSendingCountdown(false);
+    if (sendTimerRef.current) clearTimeout(sendTimerRef.current);
+    if (sendIntervalRef.current) clearInterval(sendIntervalRef.current);
+
     const htmlContent = editorRef.current?.innerHTML || '';
     onSend({
       to,
@@ -158,6 +262,36 @@ export default function DockedCompose({
     if (typeof window !== 'undefined') {
       localStorage.removeItem('foryourgoal_webmail_draft');
     }
+  };
+
+  const handleSend = () => {
+    if (!to.trim()) {
+      alert('Please specify at least one recipient.');
+      return;
+    }
+    setIsSendingCountdown(true);
+    setSendCountdown(5);
+
+    sendIntervalRef.current = setInterval(() => {
+      setSendCountdown((prev) => {
+        if (prev <= 1) {
+          if (sendIntervalRef.current) clearInterval(sendIntervalRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    sendTimerRef.current = setTimeout(() => {
+      executeSend();
+    }, 5000);
+  };
+
+  const handleUndoSend = () => {
+    if (sendTimerRef.current) clearTimeout(sendTimerRef.current);
+    if (sendIntervalRef.current) clearInterval(sendIntervalRef.current);
+    setIsSendingCountdown(false);
+    setSendCountdown(5);
   };
 
   // Draft auto-save to localStorage
@@ -425,6 +559,67 @@ export default function DockedCompose({
         {/* Main Form (Hidden if Minimized) */}
         {!isMinimized && (
           <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+            {isSendingCountdown && (
+              <Box
+                id="compose-undo-send-banner"
+                sx={{
+                  mx: 2,
+                  mt: 1,
+                  p: 1.2,
+                  bgcolor: isDark ? '#1e293b' : '#334155',
+                  color: '#ffffff',
+                  borderRadius: '10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                  animation: 'fadeIn 0.2s ease-in-out',
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
+                  <CircularProgress size={16} sx={{ color: '#38bdf8' }} />
+                  <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.8125rem' }}>
+                    Sending message in {sendCountdown}s...
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Button
+                    id="compose-undo-button"
+                    size="small"
+                    variant="contained"
+                    onClick={handleUndoSend}
+                    sx={{
+                      bgcolor: '#f59e0b',
+                      color: '#000000',
+                      fontWeight: 700,
+                      textTransform: 'none',
+                      fontSize: '0.75rem',
+                      py: 0.2,
+                      px: 1.5,
+                      borderRadius: '6px',
+                      '&:hover': { bgcolor: '#d97706' },
+                    }}
+                  >
+                    Undo
+                  </Button>
+                  <Button
+                    id="compose-send-now-button"
+                    size="small"
+                    onClick={executeSend}
+                    sx={{
+                      color: '#cbd5e1',
+                      textTransform: 'none',
+                      fontSize: '0.75rem',
+                      p: 0,
+                      minWidth: 'auto',
+                      '&:hover': { color: '#ffffff' },
+                    }}
+                  >
+                    Send now
+                  </Button>
+                </Box>
+              </Box>
+            )}
             {/* Recipients Row */}
             <Box
               sx={{
@@ -441,7 +636,11 @@ export default function DockedCompose({
               <InputBase
                 id="compose-to-input"
                 value={to}
-                onChange={(e) => setTo(e.target.value)}
+                onChange={(e) => {
+                  setTo(e.target.value);
+                  setActiveSuggestionField('to');
+                }}
+                onFocus={() => setActiveSuggestionField('to')}
                 placeholder="Recipients"
                 fullWidth
                 sx={{ fontSize: '0.875rem', color: theme.palette.text.primary }}
@@ -495,6 +694,52 @@ export default function DockedCompose({
                 )}
               </Box>
             </Box>
+
+            {/* Contacts Autocomplete Suggestion Popup */}
+            {activeSuggestionField === 'to' && to.trim().length > 0 && contactSuggestions.filter(c => c.name.toLowerCase().includes(to.toLowerCase()) || c.email.toLowerCase().includes(to.toLowerCase())).length > 0 && (
+              <Paper
+                id="compose-to-suggestions"
+                elevation={6}
+                sx={{
+                  mx: 2,
+                  mt: 0.5,
+                  borderRadius: '10px',
+                  maxHeight: 160,
+                  overflowY: 'auto',
+                  border: `1px solid ${theme.palette.divider}`,
+                  bgcolor: theme.palette.background.paper,
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+                  zIndex: 10,
+                }}
+              >
+                <List dense sx={{ py: 0.5 }}>
+                  {contactSuggestions
+                    .filter(c => c.name.toLowerCase().includes(to.toLowerCase()) || c.email.toLowerCase().includes(to.toLowerCase()))
+                    .map((contact, idx) => (
+                      <ListItem
+                        key={idx}
+                        component="div"
+                        onClick={() => {
+                          setTo(contact.email);
+                          setActiveSuggestionField(null);
+                        }}
+                        sx={{
+                          py: 0.5,
+                          cursor: 'pointer',
+                          '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)' }
+                        }}
+                      >
+                        <ListItemText
+                          primary={contact.name}
+                          secondary={contact.email}
+                          primaryTypographyProps={{ fontSize: '0.8125rem', fontWeight: 600 }}
+                          secondaryTypographyProps={{ fontSize: '0.75rem', color: '#0b57d0' }}
+                        />
+                      </ListItem>
+                    ))}
+                </List>
+              </Paper>
+            )}
 
             {/* Cc Row */}
             {showCc && (
@@ -659,28 +904,76 @@ export default function DockedCompose({
               }}
             >
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
-                {/* Send Button */}
-                <Button
-                  variant="contained"
-                  onClick={handleSend}
-                  id="compose-send-button"
-                  sx={{
-                    backgroundColor: '#0b57d0',
-                    color: '#ffffff',
-                    borderRadius: '20px',
-                    px: 3,
-                    py: 0.8,
-                    fontSize: '0.875rem',
-                    fontWeight: 600,
-                    boxShadow: 'none',
-                    '&:hover': {
-                      backgroundColor: '#0842a0',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
-                    },
-                  }}
+                {/* Send Button & Schedule Split */}
+                <Box sx={{ display: 'inline-flex', alignItems: 'center' }}>
+                  <Button
+                    variant="contained"
+                    onClick={handleSend}
+                    id="compose-send-button"
+                    sx={{
+                      backgroundColor: '#0b57d0',
+                      color: '#ffffff',
+                      borderTopLeftRadius: '20px',
+                      borderBottomLeftRadius: '20px',
+                      borderTopRightRadius: 0,
+                      borderBottomRightRadius: 0,
+                      px: 2.5,
+                      py: 0.8,
+                      fontSize: '0.875rem',
+                      fontWeight: 600,
+                      boxShadow: 'none',
+                      '&:hover': {
+                        backgroundColor: '#0842a0',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                      },
+                    }}
+                  >
+                    Send
+                  </Button>
+                  <Button
+                    variant="contained"
+                    size="small"
+                    onClick={(e) => setSendMenuAnchor(e.currentTarget)}
+                    id="compose-send-dropdown"
+                    sx={{
+                      backgroundColor: '#0b57d0',
+                      color: '#ffffff',
+                      minWidth: '32px',
+                      px: 0.5,
+                      py: 0.8,
+                      borderTopRightRadius: '20px',
+                      borderBottomRightRadius: '20px',
+                      borderTopLeftRadius: 0,
+                      borderBottomLeftRadius: 0,
+                      borderLeft: '1px solid rgba(255,255,255,0.25)',
+                      boxShadow: 'none',
+                      '&:hover': {
+                        backgroundColor: '#0842a0',
+                      },
+                    }}
+                  >
+                    <ArrowDropDownIcon fontSize="small" />
+                  </Button>
+                </Box>
+
+                <Menu
+                  anchorEl={sendMenuAnchor}
+                  open={Boolean(sendMenuAnchor)}
+                  onClose={() => setSendMenuAnchor(null)}
+                  PaperProps={{ sx: { borderRadius: '12px', minWidth: 180 } }}
                 >
-                  Send
-                </Button>
+                  <MenuItem
+                    onClick={() => {
+                      setSendMenuAnchor(null);
+                      setScheduleDialogOpen(true);
+                    }}
+                  >
+                    <ListItemIcon>
+                      <ScheduleSendIcon fontSize="small" sx={{ color: '#0b57d0' }} />
+                    </ListItemIcon>
+                    <ListItemText primary="Schedule send" secondary="Pick date & time" />
+                  </MenuItem>
+                </Menu>
 
                 {/* AI "Help me write" Trigger */}
                 <Tooltip title="Help me write (AI draft generator)">
@@ -709,6 +1002,45 @@ export default function DockedCompose({
                     {aiGenerating ? 'Drafting...' : 'AI Draft'}
                   </Button>
                 </Tooltip>
+
+                {/* Templates / Canned Responses */}
+                <Tooltip title="Templates (Canned Responses)">
+                  <IconButton
+                    size="small"
+                    onClick={(e) => setTemplateAnchor(e.currentTarget)}
+                    id="compose-templates-button"
+                    sx={{
+                      color: theme.palette.text.secondary,
+                      p: 0.6,
+                      borderRadius: '8px',
+                      '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' },
+                    }}
+                  >
+                    <ArticleOutlinedIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+
+                <Menu
+                  anchorEl={templateAnchor}
+                  open={Boolean(templateAnchor)}
+                  onClose={() => setTemplateAnchor(null)}
+                  PaperProps={{ sx: { borderRadius: '14px', width: 280, p: 0.5 } }}
+                >
+                  <Typography variant="caption" sx={{ px: 2, py: 1, display: 'block', fontWeight: 600, color: theme.palette.text.secondary }}>
+                    SAVED EMAIL TEMPLATES
+                  </Typography>
+                  <Divider sx={{ mb: 0.5 }} />
+                  {CANNED_TEMPLATES.map((tmpl, idx) => (
+                    <MenuItem key={idx} onClick={() => handleApplyTemplate(tmpl)} sx={{ borderRadius: '8px' }}>
+                      <ListItemText
+                        primary={tmpl.title}
+                        secondary={tmpl.subject}
+                        primaryTypographyProps={{ fontSize: '0.8125rem', fontWeight: 600 }}
+                        secondaryTypographyProps={{ fontSize: '0.75rem', noWrap: true }}
+                      />
+                    </MenuItem>
+                  ))}
+                </Menu>
 
                 <Divider orientation="vertical" flexItem sx={{ mx: 0.5, height: 22, my: 'auto' }} />
 
@@ -913,6 +1245,44 @@ export default function DockedCompose({
             </Box>
           </Box>
         )}
+      
+      {/* Schedule Send Dialog */}
+      <Dialog
+        open={scheduleDialogOpen}
+        onClose={() => setScheduleDialogOpen(false)}
+        PaperProps={{ sx: { borderRadius: '16px', width: 360 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <ScheduleSendIcon color="primary" /> Schedule Send
+        </DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Specify the date and time when this email should be sent.
+          </Typography>
+          <TextField
+            fullWidth
+            type="datetime-local"
+            label="Send Date & Time"
+            InputLabelProps={{ shrink: true }}
+            value={scheduleDateTime}
+            onChange={(e) => setScheduleDateTime(e.target.value)}
+            size="small"
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setScheduleDialogOpen(false)} color="inherit">
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleScheduleSendSubmit}
+            sx={{ borderRadius: '12px', bgcolor: '#0b57d0' }}
+          >
+            Schedule
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       </Paper>
 
       {/* Insert Link Dialog */}

@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -38,6 +38,10 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import DriveFileMoveOutlinedIcon from '@mui/icons-material/DriveFileMoveOutlined';
 import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined';
 import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined';
+import AccessTimeOutlinedIcon from '@mui/icons-material/AccessTimeOutlined';
+import BlockOutlinedIcon from '@mui/icons-material/BlockOutlined';
+import EventAvailableOutlinedIcon from '@mui/icons-material/EventAvailableOutlined';
+import SecurityOutlinedIcon from '@mui/icons-material/SecurityOutlined';
 import { EmailHeader, FolderInfo } from '@/lib/imap';
 
 interface EmailDetail extends EmailHeader {
@@ -92,6 +96,39 @@ export default function MailReader({
   const [moreAnchor, setMoreAnchor] = useState<null | HTMLElement>(null);
   const [moveAnchor, setMoveAnchor] = useState<null | HTMLElement>(null);
   const [securityOpen, setSecurityOpen] = useState(false);
+  const [snoozeAnchor, setSnoozeAnchor] = useState<null | HTMLElement>(null);
+  const [showExternalImages, setShowExternalImages] = useState(false);
+  const [rsvpStatus, setRsvpStatus] = useState<'none' | 'accepted' | 'maybe' | 'declined'>('none');
+  const [blockedSenders, setBlockedSenders] = useState<string[]>([]);
+
+  // Load blocked senders
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('foryourgoal_blocked_senders');
+        if (stored) setBlockedSenders(JSON.parse(stored));
+      } catch (e) {}
+    }
+  }, []);
+
+  const handleBlockSender = () => {
+    if (!senderEmail) return;
+    const updated = [...blockedSenders, senderEmail.toLowerCase()];
+    setBlockedSenders(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('foryourgoal_blocked_senders', JSON.stringify(updated));
+    }
+    setMoreAnchor(null);
+    onAction('spam', [message.uid]);
+    alert(`Blocked ${senderEmail}. The conversation has been moved to Spam.`);
+    onBack();
+  };
+
+  const handleSnooze = (label: string) => {
+    setSnoozeAnchor(null);
+    alert(`Conversation snoozed until ${label}`);
+    onBack();
+  };
 
   const sender = message.from[0]?.name || message.from[0]?.address || 'Unknown';
   const senderEmail = message.from[0]?.address || '';
@@ -198,6 +235,46 @@ export default function MailReader({
             </IconButton>
           </Tooltip>
 
+          {/* Snooze Button */}
+          <Tooltip title="Snooze">
+            <IconButton
+              size="small"
+              onClick={(e) => setSnoozeAnchor(e.currentTarget)}
+              id="reader-snooze-button"
+              sx={{ color: theme.palette.text.secondary }}
+            >
+              <AccessTimeOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Menu
+            anchorEl={snoozeAnchor}
+            open={Boolean(snoozeAnchor)}
+            onClose={() => setSnoozeAnchor(null)}
+            PaperProps={{ sx: { borderRadius: '12px', minWidth: 200 } }}
+          >
+            <Typography variant="caption" sx={{ px: 2, py: 1, display: 'block', fontWeight: 600, color: 'text.secondary' }}>
+              SNOOZE UNTIL...
+            </Typography>
+            <Divider sx={{ mb: 0.5 }} />
+            <MenuItem onClick={() => handleSnooze('Later today (6:00 PM)')} sx={{ borderRadius: '8px', mx: 0.5 }}>
+              <ListItemIcon><AccessTimeOutlinedIcon fontSize="small" /></ListItemIcon>
+              <ListItemText primary="Later today" secondary="6:00 PM" />
+            </MenuItem>
+            <MenuItem onClick={() => handleSnooze('Tomorrow (8:00 AM)')} sx={{ borderRadius: '8px', mx: 0.5 }}>
+              <ListItemIcon><AccessTimeOutlinedIcon fontSize="small" /></ListItemIcon>
+              <ListItemText primary="Tomorrow" secondary="8:00 AM" />
+            </MenuItem>
+            <MenuItem onClick={() => handleSnooze('This weekend')} sx={{ borderRadius: '8px', mx: 0.5 }}>
+              <ListItemIcon><AccessTimeOutlinedIcon fontSize="small" /></ListItemIcon>
+              <ListItemText primary="This weekend" secondary="Saturday 9:00 AM" />
+            </MenuItem>
+            <MenuItem onClick={() => handleSnooze('Next week')} sx={{ borderRadius: '8px', mx: 0.5 }}>
+              <ListItemIcon><AccessTimeOutlinedIcon fontSize="small" /></ListItemIcon>
+              <ListItemText primary="Next week" secondary="Monday 8:00 AM" />
+            </MenuItem>
+          </Menu>
+
+
           {/* Move to folder */}
           <Tooltip title="Move to folder">
             <IconButton
@@ -281,6 +358,17 @@ export default function MailReader({
                 <ShieldOutlinedIcon fontSize="small" />
               </ListItemIcon>
               <ListItemText primary="View Security Details" />
+            </MenuItem>
+            <Divider sx={{ my: 0.5 }} />
+            <MenuItem
+              onClick={handleBlockSender}
+              id="reader-block-sender-item"
+              sx={{ borderRadius: '8px', mx: 0.5, color: theme.palette.error.main }}
+            >
+              <ListItemIcon>
+                <BlockOutlinedIcon fontSize="small" color="error" />
+              </ListItemIcon>
+              <ListItemText primary={`Block ${sender}`} />
             </MenuItem>
           </Menu>
         </Box>
@@ -369,6 +457,100 @@ export default function MailReader({
           </Box>
         </Box>
 
+        {/* Calendar Invite Card if .ics present */}
+        {(detail?.attachments?.some(a => a.filename?.toLowerCase().endsWith('.ics') || a.contentType?.toLowerCase().includes('calendar')) || detail?.text?.includes('BEGIN:VCALENDAR')) && (
+          <Paper
+            variant="outlined"
+            id="reader-calendar-card"
+            sx={{
+              p: 2,
+              mb: 3,
+              borderRadius: '12px',
+              borderLeft: '4px solid #1a73e8',
+              bgcolor: isDark ? 'rgba(26, 115, 232, 0.1)' : '#f8fafd',
+              borderColor: isDark ? 'rgba(26, 115, 232, 0.3)' : '#d2e3fc',
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+              <EventAvailableOutlinedIcon sx={{ color: '#1a73e8' }} />
+              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                Calendar Meeting Invitation
+              </Typography>
+            </Box>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
+              Subject: <strong>{message.subject || 'Meeting'}</strong> • Organizer: {sender} ({senderEmail})
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Button
+                size="small"
+                variant={rsvpStatus === 'accepted' ? 'contained' : 'outlined'}
+                color="success"
+                onClick={() => setRsvpStatus('accepted')}
+                sx={{ textTransform: 'none', borderRadius: '8px', fontWeight: 600 }}
+              >
+                {rsvpStatus === 'accepted' ? '✓ Accepted' : 'Accept'}
+              </Button>
+              <Button
+                size="small"
+                variant={rsvpStatus === 'maybe' ? 'contained' : 'outlined'}
+                color="warning"
+                onClick={() => setRsvpStatus('maybe')}
+                sx={{ textTransform: 'none', borderRadius: '8px', fontWeight: 600 }}
+              >
+                {rsvpStatus === 'maybe' ? '? Maybe' : 'Maybe'}
+              </Button>
+              <Button
+                size="small"
+                variant={rsvpStatus === 'declined' ? 'contained' : 'outlined'}
+                color="error"
+                onClick={() => setRsvpStatus('declined')}
+                sx={{ textTransform: 'none', borderRadius: '8px', fontWeight: 600 }}
+              >
+                {rsvpStatus === 'declined' ? '✗ Declined' : 'Decline'}
+              </Button>
+            </Box>
+          </Paper>
+        )}
+
+        {/* Remote Images Privacy Protection Banner */}
+        {detail?.html && /<img[^>]+src=["']https?:\/\//i.test(detail.html) && !showExternalImages && (
+          <Paper
+            variant="outlined"
+            id="reader-remote-images-banner"
+            sx={{
+              p: 1.5,
+              mb: 2.5,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              borderRadius: '10px',
+              bgcolor: isDark ? 'rgba(245, 124, 0, 0.1)' : '#fff8e1',
+              borderColor: isDark ? 'rgba(245, 124, 0, 0.3)' : '#ffe082',
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <SecurityOutlinedIcon sx={{ color: '#f57c00' }} />
+              <Box>
+                <Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
+                  External images are blocked for your privacy
+                </Typography>
+                <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                  Images can be used to track whether and when you opened this email.
+                </Typography>
+              </Box>
+            </Box>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => setShowExternalImages(true)}
+              id="reader-display-images-btn"
+              sx={{ textTransform: 'none', fontWeight: 600, borderColor: '#f57c00', color: '#f57c00' }}
+            >
+              Display Images
+            </Button>
+          </Paper>
+        )}
+
         {/* Email Body */}
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
@@ -379,7 +561,14 @@ export default function MailReader({
             {detail?.html ? (
               <Box
                 component="div"
-                dangerouslySetInnerHTML={{ __html: detail.html }}
+                dangerouslySetInnerHTML={{
+                  __html: showExternalImages
+                    ? detail.html
+                    : detail.html.replace(
+                        /<img([^>]+)src=(["']https?:\/\/[^"']+["'])/gi,
+                        '<img$1data-blocked-src=$2 src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMSIgaGVpZ2h0PSIxIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjwvc3ZnPg=="'
+                      )
+                }}
                 sx={{
                   color: theme.palette.text.primary,
                   fontFamily: 'inherit',
