@@ -48,3 +48,53 @@ export async function GET() {
     );
   }
 }
+
+export async function POST(req: Request) {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { name } = await req.json();
+  if (!name || typeof name !== 'string') {
+    return NextResponse.json({ error: 'Folder name required' }, { status: 400 });
+  }
+
+  const client = createImapClient(session);
+  try {
+    await client.connect();
+    await client.mailboxCreate(name.trim());
+    await client.logout();
+    return NextResponse.json({ success: true, message: `Folder '${name}' created` });
+  } catch (error: any) {
+    console.error('Error creating folder:', error);
+    try { await client.logout(); } catch (e) {}
+    return NextResponse.json({ error: error?.message || 'Failed to create folder' }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const name = searchParams.get('name');
+  if (!name) {
+    return NextResponse.json({ error: 'Folder name required' }, { status: 400 });
+  }
+
+  const client = createImapClient(session);
+  try {
+    await client.connect();
+    await client.mailboxDelete(name.trim());
+    await client.logout();
+    return NextResponse.json({ success: true, message: `Folder '${name}' deleted` });
+  } catch (error: any) {
+    console.error('Error deleting folder:', error);
+    try { await client.logout(); } catch (e) {}
+    return NextResponse.json({ error: error?.message || 'Failed to delete folder' }, { status: 500 });
+  }
+}
+

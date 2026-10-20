@@ -11,9 +11,14 @@ import {
   Divider,
   CircularProgress,
   Paper,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -23,13 +28,17 @@ import MarkEmailUnreadOutlinedIcon from '@mui/icons-material/MarkEmailUnreadOutl
 import StarBorderIcon from '@mui/icons-material/StarBorder';
 import StarIcon from '@mui/icons-material/Star';
 import ReplyOutlinedIcon from '@mui/icons-material/ReplyOutlined';
+import ReplyAllIcon from '@mui/icons-material/ReplyAll';
 import ForwardOutlinedIcon from '@mui/icons-material/ForwardOutlined';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import DownloadIcon from '@mui/icons-material/Download';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { EmailHeader } from '@/lib/imap';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import DriveFileMoveOutlinedIcon from '@mui/icons-material/DriveFileMoveOutlined';
+import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined';
+import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined';
+import { EmailHeader, FolderInfo } from '@/lib/imap';
 
 interface EmailDetail extends EmailHeader {
   html: string;
@@ -40,6 +49,16 @@ interface EmailDetail extends EmailHeader {
     size: number;
     partId: string;
   }[];
+  cc?: { name: string; address: string }[];
+  headers?: {
+    spf?: string;
+    dkim?: string;
+    dmarc?: string;
+    messageId?: string;
+    date?: string;
+    returnPath?: string;
+  };
+  rawHeaders?: string;
 }
 
 interface MailReaderProps {
@@ -47,9 +66,12 @@ interface MailReaderProps {
   detail: EmailDetail | null;
   loading: boolean;
   onBack: () => void;
-  onAction: (action: string, uids: number[]) => void;
+  onAction: (action: string, uids: number[], targetFolder?: string) => void;
   onReply: (quote?: string) => void;
+  onReplyAll?: () => void;
   onForward: () => void;
+  currentFolder?: string;
+  folders?: FolderInfo[];
 }
 
 export default function MailReader({
@@ -59,20 +81,71 @@ export default function MailReader({
   onBack,
   onAction,
   onReply,
+  onReplyAll,
   onForward,
+  currentFolder = 'INBOX',
+  folders = [],
 }: MailReaderProps) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
 
+  const [moreAnchor, setMoreAnchor] = useState<null | HTMLElement>(null);
+  const [moveAnchor, setMoveAnchor] = useState<null | HTMLElement>(null);
+  const [securityOpen, setSecurityOpen] = useState(false);
+
   const sender = message.from[0]?.name || message.from[0]?.address || 'Unknown';
   const senderEmail = message.from[0]?.address || '';
 
-  // Smart Reply suggestions
   const smartReplies = [
     'Received with thanks, looking forward to it!',
     'I will review this and update you shortly.',
     'Thank you for confirming. Noted!',
   ];
+
+  const handlePrint = () => {
+    const subject = message.subject || '(no subject)';
+    const from = message.from.map((f) => (f.name ? `${f.name} <${f.address}>` : f.address)).join(', ');
+    const to = message.to.map((t) => (t.name ? `${t.name} <${t.address}>` : t.address)).join(', ');
+    const date = new Date(message.date).toLocaleString([], { dateStyle: 'full', timeStyle: 'short' });
+    const body = detail?.html || `<pre style="white-space:pre-wrap;font-family:inherit">${detail?.text || message.snippet || ''}</pre>`;
+
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
+    if (!printWindow) return;
+    printWindow.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${subject}</title>
+<style>body{font-family:Arial,sans-serif;padding:24px;color:#222;}h2{margin-bottom:4px;}.meta{color:#555;font-size:0.9rem;margin-bottom:16px;border-bottom:1px solid #ddd;padding-bottom:12px;}.meta span{display:block;margin-bottom:4px;}@media print{body{padding:0;}}</style>
+</head><body>
+<h2>${subject}</h2>
+<div class="meta">
+<span><strong>From:</strong> ${from}</span>
+<span><strong>To:</strong> ${to}</span>
+<span><strong>Date:</strong> ${date}</span>
+</div>
+<div>${body}</div>
+</body></html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  };
+
+  const handleDownloadEml = () => {
+    window.open(
+      `/api/mail/message/${message.uid}/raw?folder=${encodeURIComponent(currentFolder)}`,
+      '_blank'
+    );
+  };
+
+  const spfStatus = detail?.headers?.spf || 'unknown';
+  const dkimStatus = detail?.headers?.dkim || 'unknown';
+  const dmarcStatus = detail?.headers?.dmarc || 'unknown';
+
+  const getAuthChipColor = (status: string): 'success' | 'error' | 'warning' | 'default' => {
+    if (status === 'pass') return 'success';
+    if (status === 'fail') return 'error';
+    if (status === 'softfail' || status === 'neutral') return 'warning';
+    return 'default';
+  };
+
+  const movableFolders = folders.filter((f) => f.path !== currentFolder);
 
   return (
     <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
@@ -124,14 +197,92 @@ export default function MailReader({
               <MarkEmailUnreadOutlinedIcon fontSize="small" />
             </IconButton>
           </Tooltip>
+
+          {/* Move to folder */}
+          <Tooltip title="Move to folder">
+            <IconButton
+              size="small"
+              onClick={(e) => setMoveAnchor(e.currentTarget)}
+              sx={{ color: theme.palette.text.secondary }}
+            >
+              <DriveFileMoveOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Menu
+            anchorEl={moveAnchor}
+            open={Boolean(moveAnchor)}
+            onClose={() => setMoveAnchor(null)}
+            PaperProps={{ sx: { borderRadius: '12px', minWidth: 200, maxHeight: 320 } }}
+          >
+            {movableFolders.length === 0 ? (
+              <MenuItem disabled>No other folders</MenuItem>
+            ) : (
+              movableFolders.map((f) => (
+                <MenuItem
+                  key={f.path}
+                  onClick={() => {
+                    setMoveAnchor(null);
+                    onAction('move', [message.uid], f.path);
+                  }}
+                  sx={{ borderRadius: '8px', mx: 0.5 }}
+                >
+                  <ListItemIcon>
+                    <FolderOutlinedIcon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText primary={f.name} />
+                </MenuItem>
+              ))
+            )}
+          </Menu>
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Tooltip title="Print">
-            <IconButton size="small" onClick={() => window.print()} sx={{ color: theme.palette.text.secondary }}>
+            <IconButton size="small" onClick={handlePrint} sx={{ color: theme.palette.text.secondary }}>
               <PrintOutlinedIcon fontSize="small" />
             </IconButton>
           </Tooltip>
+
+          <Tooltip title="More options">
+            <IconButton
+              size="small"
+              onClick={(e) => setMoreAnchor(e.currentTarget)}
+              sx={{ color: theme.palette.text.secondary }}
+            >
+              <MoreVertIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Menu
+            anchorEl={moreAnchor}
+            open={Boolean(moreAnchor)}
+            onClose={() => setMoreAnchor(null)}
+            PaperProps={{ sx: { borderRadius: '12px', minWidth: 200 } }}
+          >
+            <MenuItem
+              onClick={() => {
+                setMoreAnchor(null);
+                handleDownloadEml();
+              }}
+              sx={{ borderRadius: '8px', mx: 0.5 }}
+            >
+              <ListItemIcon>
+                <DownloadIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText primary="Download .eml" />
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                setMoreAnchor(null);
+                setSecurityOpen(true);
+              }}
+              sx={{ borderRadius: '8px', mx: 0.5 }}
+            >
+              <ListItemIcon>
+                <ShieldOutlinedIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText primary="View Security Details" />
+            </MenuItem>
+          </Menu>
         </Box>
       </Box>
 
@@ -282,7 +433,15 @@ export default function MailReader({
                         </Typography>
                       </Box>
                       <Tooltip title="Download">
-                        <IconButton size="small">
+                        <IconButton
+                          size="small"
+                          onClick={() =>
+                            window.open(
+                              `/api/mail/message/${message.uid}/attachment/${i}?folder=${encodeURIComponent(currentFolder)}`,
+                              '_blank'
+                            )
+                          }
+                        >
                           <DownloadIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
@@ -348,6 +507,25 @@ export default function MailReader({
           >
             Reply
           </Button>
+          {onReplyAll && (
+            <Button
+              variant="outlined"
+              startIcon={<ReplyAllIcon />}
+              onClick={onReplyAll}
+              sx={{
+                borderRadius: '24px',
+                px: 3,
+                borderColor: theme.palette.divider,
+                color: theme.palette.text.primary,
+                '&:hover': {
+                  borderColor: theme.palette.primary.main,
+                  backgroundColor: isDark ? '#303236' : '#f1f3f4',
+                },
+              }}
+            >
+              Reply All
+            </Button>
+          )}
           <Button
             variant="outlined"
             startIcon={<ForwardOutlinedIcon />}
@@ -367,6 +545,75 @@ export default function MailReader({
           </Button>
         </Box>
       </Box>
+
+      {/* Security Details Dialog */}
+      <Dialog
+        open={securityOpen}
+        onClose={() => setSecurityOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: '20px', p: 1 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <ShieldOutlinedIcon sx={{ color: theme.palette.primary.main }} />
+          Security & Authentication Details
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', gap: 1.5, mb: 3, flexWrap: 'wrap' }}>
+            <Chip
+              label={`SPF: ${spfStatus}`}
+              color={getAuthChipColor(spfStatus)}
+              variant="outlined"
+              size="small"
+              sx={{ fontWeight: 600, textTransform: 'capitalize' }}
+            />
+            <Chip
+              label={`DKIM: ${dkimStatus}`}
+              color={getAuthChipColor(dkimStatus)}
+              variant="outlined"
+              size="small"
+              sx={{ fontWeight: 600, textTransform: 'capitalize' }}
+            />
+            <Chip
+              label={`DMARC: ${dmarcStatus}`}
+              color={getAuthChipColor(dmarcStatus)}
+              variant="outlined"
+              size="small"
+              sx={{ fontWeight: 600, textTransform: 'capitalize' }}
+            />
+          </Box>
+          {(detail?.rawHeaders || detail?.headers?.messageId) && (
+            <Box
+              sx={{
+                bgcolor: isDark ? '#1e1e1e' : '#f5f5f5',
+                borderRadius: '8px',
+                p: 2,
+                maxHeight: 320,
+                overflowY: 'auto',
+              }}
+            >
+              <Typography
+                component="pre"
+                sx={{
+                  fontSize: '0.72rem',
+                  fontFamily: 'monospace',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-all',
+                  color: theme.palette.text.primary,
+                  m: 0,
+                }}
+              >
+                {detail?.rawHeaders || `Message-ID: ${detail?.headers?.messageId || ''}`}
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setSecurityOpen(false)} variant="contained" sx={{ borderRadius: '16px' }}>
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

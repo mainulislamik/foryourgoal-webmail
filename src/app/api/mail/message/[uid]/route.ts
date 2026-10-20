@@ -48,6 +48,15 @@ export async function GET(
           }))
         );
 
+        const ccList = parsed.cc
+          ? (Array.isArray(parsed.cc) ? parsed.cc : [parsed.cc]).flatMap((c: any) =>
+              (c.value || []).map((v: any) => ({
+                name: v.name || v.address || '',
+                address: v.address || ''
+              }))
+            )
+          : [];
+
         const attachments = (parsed.attachments || []).map(att => ({
           filename: att.filename,
           contentType: att.contentType,
@@ -55,12 +64,36 @@ export async function GET(
           contentId: att.contentId
         }));
 
+        // Extract security headers
+        const headerLines = (parsed.headerLines || []) as { key: string; line: string }[];
+        const getHeader = (name: string) => {
+          const h = headerLines.find(l => l.key.toLowerCase() === name.toLowerCase());
+          return h ? h.line.replace(/^[^:]+:\s*/i, '').trim() : undefined;
+        };
+        const authResults = getHeader('authentication-results') || '';
+        const extractResult = (str: string, key: string) => {
+          const m = str.match(new RegExp(`${key}=([a-zA-Z]+)`, 'i'));
+          return m ? m[1].toLowerCase() : undefined;
+        };
+
+        const securityHeaders = {
+          spf: extractResult(authResults, 'spf'),
+          dkim: extractResult(authResults, 'dkim'),
+          dmarc: extractResult(authResults, 'dmarc'),
+          messageId: parsed.messageId || getHeader('message-id'),
+          date: parsed.date?.toISOString(),
+          returnPath: getHeader('return-path'),
+        };
+
+        const rawHeadersStr = headerLines.map(l => l.line).join('\r\n');
+
         emailDetail = {
           uid,
           seq: 0,
           subject: parsed.subject || '(no subject)',
           from: fromList,
           to: toList,
+          cc: ccList,
           date: parsed.date ? parsed.date.toISOString() : new Date().toISOString(),
           flags: ['\\Seen'],
           unread: false,
@@ -70,7 +103,9 @@ export async function GET(
           html: parsed.html || undefined,
           text: parsed.text || undefined,
           textAsHtml: parsed.textAsHtml || undefined,
-          attachments
+          attachments,
+          headers: securityHeaders,
+          rawHeaders: rawHeadersStr,
         };
       }
     } finally {

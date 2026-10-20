@@ -57,4 +57,14 @@ export interface EmailDetail extends EmailHeader {
     size: number;
     contentId?: string;
   }[];
+  cc?: { name: string; address: string }[];
+  headers?: {
+    spf?: string;
+    dkim?: string;
+    dmarc?: string;
+    messageId?: string;
+    date?: string;
+    returnPath?: string;
+  };
+  rawHeaders?: string;
 }

@@ -223,19 +223,19 @@ export default function MailAppPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [composeState.open, settingsOpen, selectedMessage]);
 
-  const handleAction = async (action: string, uids: number[]) => {
+  const handleAction = async (action: string, uids: number[], destinationFolder?: string) => {
     try {
       const res = await fetch('/api/mail/action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, uids, folder: currentFolder }),
+        body: JSON.stringify({ action, uids, folder: currentFolder, destinationFolder }),
       });
       if (res.ok) {
         setToastMsg(`Action ${action} succeeded`);
         setToastSeverity('success');
         fetchMessages();
         fetchFolders();
-        if (action === 'delete' || action === 'archive') {
+        if (action === 'delete' || action === 'archive' || action === 'move' || action === 'emptyFolder') {
           setSelectedMessage(null);
         }
       }
@@ -258,6 +258,8 @@ export default function MailAppPage() {
     subject: string;
     body: string;
     attachments?: Array<{ filename: string; content: string; contentType: string; size: number }>;
+    priority?: 'high' | 'normal';
+    requestReadReceipt?: boolean;
   }) => {
     try {
       const res = await fetch('/api/mail/send', {
@@ -360,6 +362,7 @@ export default function MailAppPage() {
           onOpenCompose={() =>
             setComposeState({ open: true, to: '', subject: '', body: '' })
           }
+          onRefreshFolders={() => fetchFolders()}
           collapsed={sidebarCollapsed}
         />
 
@@ -383,6 +386,8 @@ export default function MailAppPage() {
               message={selectedMessage}
               detail={detailMessage}
               loading={loadingDetail}
+              currentFolder={currentFolder}
+              folders={folders}
               onBack={() => {
                 setSelectedMessage(null);
                 fetchMessages();
@@ -397,7 +402,36 @@ export default function MailAppPage() {
                   open: true,
                   to: replyTo,
                   subject: replySub,
-                  body: smartText ? `<p>${smartText}</p>` : '',
+                  body: smartText ? `<p>${smartText}</p>` : `<br><br><div style="border-left: 2px solid #0284c7; padding-left: 10px; margin-left: 5px; color: #555;">On ${selectedMessage.date}, &lt;${replyTo}&gt; wrote:<br>${detailMessage?.html || detailMessage?.text || ''}</div>`,
+                });
+              }}
+              onReplyAll={() => {
+                const replyTo = selectedMessage.from[0]?.address || '';
+                const currentUserEmail = user?.email?.toLowerCase() || '';
+                const allCc: string[] = [];
+                if (selectedMessage.to) {
+                  selectedMessage.to.forEach((t) => {
+                    if (t.address && t.address.toLowerCase() !== currentUserEmail && t.address.toLowerCase() !== replyTo.toLowerCase()) {
+                      allCc.push(t.address);
+                    }
+                  });
+                }
+                if (detailMessage?.cc) {
+                  detailMessage.cc.forEach((c: { name?: string; address: string }) => {
+                    if (c.address && c.address.toLowerCase() !== currentUserEmail && c.address.toLowerCase() !== replyTo.toLowerCase()) {
+                      allCc.push(c.address);
+                    }
+                  });
+                }
+                const replySub = selectedMessage.subject.startsWith('Re:')
+                  ? selectedMessage.subject
+                  : `Re: ${selectedMessage.subject}`;
+                setComposeState({
+                  open: true,
+                  to: replyTo,
+                  cc: [...new Set(allCc)].join(', '),
+                  subject: replySub,
+                  body: `<br><br><div style="border-left: 2px solid #0284c7; padding-left: 10px; margin-left: 5px; color: #555;">On ${selectedMessage.date}, &lt;${replyTo}&gt; wrote:<br>${detailMessage?.html || detailMessage?.text || ''}</div>`,
                 });
               }}
               onForward={() => {
@@ -429,6 +463,8 @@ export default function MailAppPage() {
               <MailList
                 messages={messages}
                 loading={loadingMessages}
+                currentFolder={currentFolder}
+                folders={folders}
                 onSelectMessage={(msg) => setSelectedMessage(msg)}
                 onRefresh={() => {
                   fetchMessages();

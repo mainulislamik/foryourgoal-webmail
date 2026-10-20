@@ -76,14 +76,53 @@ export async function GET(request: NextRequest) {
     // Sort newest first
     messages.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    // Search filter
+    // Search filter with structured token support
     let filtered = messages;
     if (query) {
-      const q = query.toLowerCase();
-      filtered = filtered.filter(m =>
-        m.subject.toLowerCase().includes(q) ||
-        m.from.some(f => f.name.toLowerCase().includes(q) || f.address.toLowerCase().includes(q))
-      );
+      // Parse structured tokens: from:, to:, subject:, has:attachment and free text
+      const tokens = query.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
+      let fromFilter = '';
+      let toFilter = '';
+      let subjectFilter = '';
+      let hasAttachment = false;
+      const generalTerms: string[] = [];
+
+      for (const token of tokens) {
+        const lower = token.toLowerCase();
+        if (lower.startsWith('from:')) {
+          fromFilter = token.slice(5).replace(/^["']|["']$/g, '').toLowerCase();
+        } else if (lower.startsWith('to:')) {
+          toFilter = token.slice(3).replace(/^["']|["']$/g, '').toLowerCase();
+        } else if (lower.startsWith('subject:')) {
+          subjectFilter = token.slice(8).replace(/^["']|["']$/g, '').toLowerCase();
+        } else if (lower === 'has:attachment') {
+          hasAttachment = true;
+        } else {
+          generalTerms.push(lower);
+        }
+      }
+
+      filtered = filtered.filter(m => {
+        if (fromFilter) {
+          const match = m.from.some(
+            f => f.name.toLowerCase().includes(fromFilter) || f.address.toLowerCase().includes(fromFilter)
+          );
+          if (!match) return false;
+        }
+        if (toFilter) {
+          const match = m.to.some(
+            t => t.name.toLowerCase().includes(toFilter) || t.address.toLowerCase().includes(toFilter)
+          );
+          if (!match) return false;
+        }
+        if (subjectFilter && !m.subject.toLowerCase().includes(subjectFilter)) return false;
+        if (hasAttachment && !m.hasAttachment) return false;
+        if (generalTerms.length > 0) {
+          const haystack = (m.subject + ' ' + m.from.map(f => f.name + ' ' + f.address).join(' ')).toLowerCase();
+          if (!generalTerms.every(t => haystack.includes(t))) return false;
+        }
+        return true;
+      });
     }
 
     // Gmail Category filter simulation:

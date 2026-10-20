@@ -13,6 +13,7 @@ export interface SendMailOptions {
     content: string | Buffer;
     contentType?: string;
   }[];
+  headers?: Record<string, string>;
 }
 
 export async function sendEmail(session: UserSession, options: SendMailOptions) {
@@ -47,7 +48,8 @@ export async function sendEmail(session: UserSession, options: SendMailOptions) 
     subject: options.subject,
     text: options.text,
     html: options.html,
-    attachments: options.attachments
+    attachments: options.attachments,
+    headers: options.headers,
   });
 
   return result;

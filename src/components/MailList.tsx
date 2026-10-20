@@ -20,7 +20,22 @@ import MarkEmailUnreadOutlinedIcon from '@mui/icons-material/MarkEmailUnreadOutl
 import AccessTimeOutlinedIcon from '@mui/icons-material/AccessTimeOutlined';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
-import { EmailHeader } from '@/lib/imap';
+import DriveFileMoveOutlinedIcon from '@mui/icons-material/DriveFileMoveOutlined';
+import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined';
+import DeleteForeverOutlinedIcon from '@mui/icons-material/DeleteForeverOutlined';
+import {
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Button,
+} from '@mui/material';
+import { EmailHeader, FolderInfo } from '@/lib/imap';
 import { useThemeMode } from '@/contexts/ThemeContext';
 
 interface MailListProps {
@@ -28,8 +43,10 @@ interface MailListProps {
   loading: boolean;
   onSelectMessage: (msg: EmailHeader) => void;
   onRefresh: () => void;
-  onAction: (action: string, uids: number[]) => void;
+  onAction: (action: string, uids: number[], targetFolder?: string) => void;
   focusedIndex?: number;
+  currentFolder?: string;
+  folders?: FolderInfo[];
 }
 
 export default function MailList({
@@ -39,6 +56,8 @@ export default function MailList({
   onRefresh,
   onAction,
   focusedIndex = -1,
+  currentFolder = 'INBOX',
+  folders = [],
 }: MailListProps) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -46,6 +65,8 @@ export default function MailList({
 
   const [selectedUids, setSelectedUids] = useState<number[]>([]);
   const [hoveredUid, setHoveredUid] = useState<number | null>(null);
+  const [moveAnchor, setMoveAnchor] = useState<null | HTMLElement>(null);
+  const [emptyDialogOpen, setEmptyDialogOpen] = useState(false);
 
   // Compute row height and typography based on density
   const rowHeight = density === 'compact' ? 32 : density === 'comfortable' ? 48 : 40;
@@ -165,6 +186,44 @@ export default function MailList({
                   <MarkEmailUnreadOutlinedIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
+              <Tooltip title="Move to folder">
+                <IconButton
+                  size="small"
+                  onClick={(e) => setMoveAnchor(e.currentTarget)}
+                  sx={{ color: theme.palette.text.secondary }}
+                >
+                  <DriveFileMoveOutlinedIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Menu
+                anchorEl={moveAnchor}
+                open={Boolean(moveAnchor)}
+                onClose={() => setMoveAnchor(null)}
+                PaperProps={{ sx: { borderRadius: '12px', minWidth: 200, maxHeight: 320 } }}
+              >
+                {folders.filter((f) => f.path !== currentFolder).length === 0 ? (
+                  <MenuItem disabled>No other folders</MenuItem>
+                ) : (
+                  folders
+                    .filter((f) => f.path !== currentFolder)
+                    .map((f) => (
+                      <MenuItem
+                        key={f.path}
+                        onClick={() => {
+                          setMoveAnchor(null);
+                          onAction('move', selectedUids, f.path);
+                          setSelectedUids([]);
+                        }}
+                        sx={{ borderRadius: '8px', mx: 0.5 }}
+                      >
+                        <ListItemIcon>
+                          <FolderOutlinedIcon fontSize="small" />
+                        </ListItemIcon>
+                        <ListItemText primary={f.name} />
+                      </MenuItem>
+                    ))
+                )}
+              </Menu>
             </>
           )}
         </Box>
@@ -175,6 +234,68 @@ export default function MailList({
           </Typography>
         </Box>
       </Box>
+
+      {/* Empty Trash/Spam Banner */}
+      {(currentFolder.toUpperCase() === 'TRASH' ||
+        currentFolder.toUpperCase() === 'SPAM' ||
+        currentFolder.toUpperCase() === 'JUNK') &&
+        messages.length > 0 && (
+          <Box
+            sx={{
+              px: 3,
+              py: 1,
+              bgcolor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#fef2f2',
+              borderBottom: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.2)' : '#fee2e2'}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <Typography variant="body2" sx={{ color: isDark ? '#fca5a5' : '#b91c1c', fontWeight: 500 }}>
+              Messages in {currentFolder} can be permanently deleted.
+            </Typography>
+            <Button
+              size="small"
+              variant="outlined"
+              color="error"
+              startIcon={<DeleteForeverOutlinedIcon />}
+              onClick={() => setEmptyDialogOpen(true)}
+              sx={{ borderRadius: '16px', textTransform: 'none', fontWeight: 600, py: 0.3 }}
+            >
+              Empty {currentFolder} now
+            </Button>
+          </Box>
+        )}
+
+      {/* Empty Confirmation Dialog */}
+      <Dialog
+        open={emptyDialogOpen}
+        onClose={() => setEmptyDialogOpen(false)}
+        PaperProps={{ sx: { borderRadius: '20px', p: 1 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 600 }}>Empty {currentFolder}?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            This action will permanently delete all messages in <strong>{currentFolder}</strong>. This cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setEmptyDialogOpen(false)} sx={{ borderRadius: '16px' }}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              setEmptyDialogOpen(false);
+              onAction('empty-folder', []);
+            }}
+            variant="contained"
+            color="error"
+            sx={{ borderRadius: '16px' }}
+          >
+            Empty Permanently
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Message List */}
       <Box sx={{ flex: 1, overflowY: 'auto', backgroundColor: theme.palette.background.paper }}>

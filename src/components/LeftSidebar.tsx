@@ -21,6 +21,18 @@ import InsertDriveFileOutlinedIcon from '@mui/icons-material/InsertDriveFileOutl
 import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
 import ReportGmailerrorredOutlinedIcon from '@mui/icons-material/ReportGmailerrorredOutlined';
 import CloudQueueIcon from '@mui/icons-material/CloudQueue';
+import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined';
+import CreateNewFolderOutlinedIcon from '@mui/icons-material/CreateNewFolderOutlined';
+import AddIcon from '@mui/icons-material/Add';
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Divider,
+  IconButton,
+} from '@mui/material';
 import { FolderInfo } from '@/lib/imap';
 
 interface LeftSidebarProps {
@@ -28,6 +40,7 @@ interface LeftSidebarProps {
   folders: FolderInfo[];
   onSelectFolder: (folder: string) => void;
   onOpenCompose: () => void;
+  onRefreshFolders?: () => void;
   collapsed?: boolean;
 }
 
@@ -36,10 +49,15 @@ export default function LeftSidebar({
   folders,
   onSelectFolder,
   onOpenCompose,
+  onRefreshFolders,
   collapsed = false,
 }: LeftSidebarProps) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
+
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [creatingFolder, setCreatingFolder] = useState(false);
 
   const [quota, setQuota] = useState<{
     usedFormatted: string;
@@ -51,6 +69,30 @@ export default function LeftSidebar({
     totalFormatted: 'VPS Storage',
     percentage: 1,
   });
+
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim()) return;
+    setCreatingFolder(true);
+    try {
+      const res = await fetch('/api/mail/folders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newFolderName.trim() }),
+      });
+      if (res.ok) {
+        setNewFolderName('');
+        setCreateDialogOpen(false);
+        if (onRefreshFolders) onRefreshFolders();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to create folder');
+      }
+    } catch (e: any) {
+      alert(e.message || 'Network error');
+    } finally {
+      setCreatingFolder(false);
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -252,6 +294,107 @@ export default function LeftSidebar({
             );
           })}
         </List>
+
+        {/* Custom Folders / Labels Section */}
+        {!collapsed && (
+          <Box sx={{ mt: 2 }}>
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                px: 2,
+                mb: 0.5,
+              }}
+            >
+              <Typography
+                variant="caption"
+                sx={{
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  color: theme.palette.text.secondary,
+                }}
+              >
+                Folders
+              </Typography>
+              <Tooltip title="Create new folder">
+                <IconButton
+                  size="small"
+                  onClick={() => setCreateDialogOpen(true)}
+                  sx={{ p: 0.5, color: theme.palette.text.secondary }}
+                >
+                  <AddIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Box>
+
+            <List sx={{ p: 0 }}>
+              {folders
+                .filter(
+                  (f) =>
+                    !['inbox', 'starred', 'sent', 'drafts', 'trash', 'junk'].includes(
+                      f.name.toLowerCase()
+                    )
+                )
+                .map((f) => {
+                  const isActive = currentFolder.toLowerCase() === f.path.toLowerCase();
+                  return (
+                    <ListItem key={f.path} disablePadding sx={{ mb: 0.5 }}>
+                      <ListItemButton
+                        onClick={() => onSelectFolder(f.path)}
+                        sx={{
+                          borderRadius: '24px',
+                          height: 36,
+                          px: 2.5,
+                          backgroundColor: isActive
+                            ? isDark
+                              ? '#004a77'
+                              : '#c2e7ff'
+                            : 'transparent',
+                          color: isActive
+                            ? isDark
+                              ? '#a8c7fa'
+                              : '#001d35'
+                            : theme.palette.text.secondary,
+                          fontWeight: isActive ? 700 : 500,
+                        }}
+                      >
+                        <ListItemIcon
+                          sx={{
+                            minWidth: 36,
+                            color: isActive
+                              ? isDark
+                                ? '#a8c7fa'
+                                : '#001d35'
+                              : theme.palette.text.secondary,
+                          }}
+                        >
+                          <FolderOutlinedIcon fontSize="small" />
+                        </ListItemIcon>
+                        <ListItemText
+                          primary={f.name}
+                          primaryTypographyProps={{
+                            fontSize: '0.875rem',
+                            fontWeight: isActive ? 700 : 500,
+                            noWrap: true,
+                          }}
+                        />
+                        {f.unreadCount > 0 && (
+                          <Typography
+                            variant="caption"
+                            sx={{ fontWeight: 700, fontSize: '0.75rem' }}
+                          >
+                            {f.unreadCount}
+                          </Typography>
+                        )}
+                      </ListItemButton>
+                    </ListItem>
+                  );
+                })}
+            </List>
+          </Box>
+        )}
       </Box>
 
       {/* Dynamic Storage Indicator */}
@@ -292,6 +435,42 @@ export default function LeftSidebar({
           </Box>
         </Tooltip>
       )}
+
+      {/* Create Folder Dialog */}
+      <Dialog
+        open={createDialogOpen}
+        onClose={() => setCreateDialogOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: '20px', p: 1 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 600 }}>Create New Folder</DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          <TextField
+            autoFocus
+            label="Folder Name"
+            fullWidth
+            size="small"
+            value={newFolderName}
+            onChange={(e) => setNewFolderName(e.target.value)}
+            placeholder="e.g. Invoices, Clients"
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setCreateDialogOpen(false)} sx={{ borderRadius: '20px', textTransform: 'none' }}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleCreateFolder}
+            variant="contained"
+            disabled={!newFolderName.trim() || creatingFolder}
+            sx={{ borderRadius: '20px', textTransform: 'none' }}
+          >
+            {creatingFolder ? 'Creating...' : 'Create'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

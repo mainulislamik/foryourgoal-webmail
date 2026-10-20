@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { to, cc, bcc, subject, text, html, attachments } = body;
+    const { to, cc, bcc, subject, text, html, attachments, priority, requestReadReceipt } = body;
 
     if (!to || (!subject && !text && !html)) {
       return NextResponse.json({ error: 'Recipient and content are required' }, { status: 400 });
@@ -30,6 +30,20 @@ export async function POST(request: NextRequest) {
         }))
       : undefined;
 
+    // Build custom headers for priority and read receipts
+    const customHeaders: Record<string, string> = {};
+    if (priority === 'high' || priority === 'urgent') {
+      customHeaders['X-Priority'] = '1';
+      customHeaders['Importance'] = 'high';
+      customHeaders['X-MS-Exchange-MessageSentRepresentingType'] = '1';
+    } else if (priority === 'low') {
+      customHeaders['X-Priority'] = '5';
+      customHeaders['Importance'] = 'low';
+    }
+    if (requestReadReceipt && typeof requestReadReceipt === 'boolean') {
+      customHeaders['Disposition-Notification-To'] = session.email;
+    }
+
     // Send email via SMTP
     const info = await sendEmail(session, {
       to,
@@ -39,6 +53,7 @@ export async function POST(request: NextRequest) {
       text,
       html: html || (text ? `<div style="font-family: sans-serif; font-size: 14px; color: #202124;">${text.replace(/\n/g, '<br/>')}</div>` : ''),
       attachments: formattedAttachments,
+      headers: Object.keys(customHeaders).length > 0 ? customHeaders : undefined,
     });
 
     // Optionally append to Sent mailbox

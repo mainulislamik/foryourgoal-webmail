@@ -41,6 +41,9 @@ import BorderColorIcon from '@mui/icons-material/BorderColor';
 import CheckIcon from '@mui/icons-material/Check';
 import ClearIcon from '@mui/icons-material/Clear';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import PriorityHighIcon from '@mui/icons-material/PriorityHigh';
+import DoneAllIcon from '@mui/icons-material/DoneAll';
 
 interface ComposeState {
   open: boolean;
@@ -62,6 +65,8 @@ interface DockedComposeProps {
     subject: string;
     body: string;
     attachments?: Array<{ filename: string; content: string; contentType: string; size: number }>;
+    priority?: 'high' | 'normal';
+    requestReadReceipt?: boolean;
   }) => void;
   signature?: string;
   onOpenSettings?: () => void;
@@ -103,6 +108,14 @@ export default function DockedCompose({
   >([]);
   const fileAttachmentInputRef = useRef<HTMLInputElement>(null);
 
+  // Message options: Priority & Read Receipt
+  const [priority, setPriority] = useState<'normal' | 'high'>('normal');
+  const [requestReceipt, setRequestReceipt] = useState(false);
+  const [moreMenuAnchor, setMoreMenuAnchor] = useState<null | HTMLElement>(null);
+
+  // Auto-save draft status
+  const [draftSavedText, setDraftSavedText] = useState<string>('');
+
   const editorRef = useRef<HTMLDivElement>(null);
 
   // Sync state changes from props
@@ -140,8 +153,30 @@ export default function DockedCompose({
       subject,
       body: htmlContent,
       attachments: attachments.length > 0 ? attachments : undefined,
+      priority,
+      requestReadReceipt: requestReceipt,
     });
+    // Clear draft upon sending
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('foryourgoal_webmail_draft');
+    }
   };
+
+  // Draft auto-save to localStorage
+  useEffect(() => {
+    if (!state.open) return;
+    const timer = setTimeout(() => {
+      const htmlContent = editorRef.current?.innerHTML || '';
+      if (to || subject || htmlContent) {
+        localStorage.setItem(
+          'foryourgoal_webmail_draft',
+          JSON.stringify({ to, cc, bcc, showCc, showBcc, subject, body: htmlContent, savedAt: new Date().toLocaleTimeString() })
+        );
+        setDraftSavedText('Draft saved');
+      }
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [to, cc, bcc, showCc, showBcc, subject, state.open]);
 
   const handleFileAttach = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -818,12 +853,63 @@ export default function DockedCompose({
                 />
               </Box>
 
-              {/* Discard Button */}
-              <Tooltip title="Discard draft">
-                <IconButton size="small" onClick={onClose} sx={{ color: theme.palette.text.secondary, p: 0.5 }}>
-                  <DeleteOutlineIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
+              {/* Status and Action Buttons */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                {draftSavedText && (
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontStyle: 'italic', mr: 0.5 }}>
+                    {draftSavedText}
+                  </Typography>
+                )}
+
+                {/* Priority Toggle */}
+                <Tooltip title={priority === 'high' ? 'High Priority Active' : 'Mark High Priority'}>
+                  <IconButton
+                    size="small"
+                    onClick={() => setPriority((p) => (p === 'high' ? 'normal' : 'high'))}
+                    sx={{
+                      color: priority === 'high' ? '#ef4444' : theme.palette.text.secondary,
+                      bgcolor: priority === 'high' ? 'rgba(239, 68, 68, 0.12)' : 'transparent',
+                      p: 0.5,
+                      borderRadius: 1,
+                    }}
+                  >
+                    <PriorityHighIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+
+                {/* Read Receipt Toggle */}
+                <Tooltip title={requestReceipt ? 'Read Receipt Active' : 'Request Read Receipt'}>
+                  <IconButton
+                    size="small"
+                    onClick={() => setRequestReceipt((r) => !r)}
+                    sx={{
+                      color: requestReceipt ? '#0284c7' : theme.palette.text.secondary,
+                      bgcolor: requestReceipt ? 'rgba(2, 132, 199, 0.12)' : 'transparent',
+                      p: 0.5,
+                      borderRadius: 1,
+                    }}
+                  >
+                    <DoneAllIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+
+                {/* Discard Button */}
+                <Tooltip title="Discard draft">
+                  <IconButton
+                    size="small"
+                    onClick={() => {
+                      if (typeof window !== 'undefined') {
+                        localStorage.removeItem('foryourgoal_webmail_draft');
+                      }
+                      setDraftSavedText('');
+                      onClose();
+                    }}
+                    sx={{ color: theme.palette.text.secondary, p: 0.5 }}
+                  >
+                    <DeleteOutlineIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Box>
             </Box>
           </Box>
         )}
