@@ -137,8 +137,6 @@ export default function DockedCompose({
     }
   }, [state, signature]);
 
-  if (!state.open) return null;
-
   const handleCommand = (command: string, value: string = '') => {
     document.execCommand(command, false, value);
     if (editorRef.current) editorRef.current.focus();
@@ -329,6 +327,8 @@ export default function DockedCompose({
       if (imageInputRef.current) imageInputRef.current.value = '';
     }
   };
+
+  if (!state.open) return null;
 
   return (
     <>
