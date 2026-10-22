@@ -11,9 +11,10 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { to, cc, bcc, subject, text, html, attachments, priority, requestReadReceipt } = body;
+    const { to, cc, bcc, subject, text, html: htmlField, body: bodyField, attachments, priority, requestReadReceipt } = body;
+    const html = htmlField || bodyField;
 
-    if (!to || (!subject && !text && !html)) {
+    if (!to || (!subject && !text && !html && !bodyField)) {
       return NextResponse.json({ error: 'Recipient and content are required' }, { status: 400 });
     }
 

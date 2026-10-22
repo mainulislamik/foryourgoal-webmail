@@ -20,9 +20,8 @@ import {
   DialogActions,
   TextField,
   Chip,
-  List,
-  ListItem,
 } from '@mui/material';
+import RecipientChipInput from './RecipientChipInput';
 import { useTheme } from '@mui/material/styles';
 import CloseIcon from '@mui/icons-material/Close';
 import MinimizeIcon from '@mui/icons-material/Minimize';
@@ -152,26 +151,6 @@ export default function DockedCompose({
 
   // Canned Templates menu
   const [templateAnchor, setTemplateAnchor] = useState<null | HTMLElement>(null);
-
-  // Contacts Autocomplete state
-  const [contactSuggestions, setContactSuggestions] = useState<Array<{ name: string; email: string }>>([]);
-  const [activeSuggestionField, setActiveSuggestionField] = useState<'to' | 'cc' | 'bcc' | null>(null);
-  const [filteredSuggestions, setFilteredSuggestions] = useState<Array<{ name: string; email: string }>>([]);
-
-  // Load contacts for autocomplete
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem('foryourgoal_contacts');
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed)) {
-            setContactSuggestions(parsed.map((c: any) => ({ name: c.name, email: c.email })));
-          }
-        }
-      } catch (e) {}
-    }
-  }, [state.open]);
 
   const handleApplyTemplate = (tmpl: { title: string; subject: string; body: string }) => {
     setSubject(tmpl.subject);
@@ -620,7 +599,7 @@ export default function DockedCompose({
                 </Box>
               </Box>
             )}
-            {/* Recipients Row */}
+            {/* Recipients (To) Row */}
             <Box
               sx={{
                 px: 2,
@@ -630,21 +609,18 @@ export default function DockedCompose({
                 borderBottom: `1px solid ${theme.palette.divider}`,
               }}
             >
-              <Typography variant="body2" sx={{ color: theme.palette.text.secondary, width: 44, fontWeight: 500 }}>
+              <Typography variant="body2" sx={{ color: theme.palette.text.secondary, width: 44, fontWeight: 500, flexShrink: 0 }}>
                 To
               </Typography>
-              <InputBase
-                id="compose-to-input"
-                value={to}
-                onChange={(e) => {
-                  setTo(e.target.value);
-                  setActiveSuggestionField('to');
-                }}
-                onFocus={() => setActiveSuggestionField('to')}
-                placeholder="Recipients"
-                fullWidth
-                sx={{ fontSize: '0.875rem', color: theme.palette.text.primary }}
-              />
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <RecipientChipInput
+                  id="compose-to-input"
+                  label="To"
+                  value={to}
+                  onChange={setTo}
+                  placeholder="Recipients"
+                />
+              </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 1, flexShrink: 0 }}>
                 {!showCc && (
                   <Typography
@@ -695,52 +671,6 @@ export default function DockedCompose({
               </Box>
             </Box>
 
-            {/* Contacts Autocomplete Suggestion Popup */}
-            {activeSuggestionField === 'to' && to.trim().length > 0 && contactSuggestions.filter(c => c.name.toLowerCase().includes(to.toLowerCase()) || c.email.toLowerCase().includes(to.toLowerCase())).length > 0 && (
-              <Paper
-                id="compose-to-suggestions"
-                elevation={6}
-                sx={{
-                  mx: 2,
-                  mt: 0.5,
-                  borderRadius: '10px',
-                  maxHeight: 160,
-                  overflowY: 'auto',
-                  border: `1px solid ${theme.palette.divider}`,
-                  bgcolor: theme.palette.background.paper,
-                  boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
-                  zIndex: 10,
-                }}
-              >
-                <List dense sx={{ py: 0.5 }}>
-                  {contactSuggestions
-                    .filter(c => c.name.toLowerCase().includes(to.toLowerCase()) || c.email.toLowerCase().includes(to.toLowerCase()))
-                    .map((contact, idx) => (
-                      <ListItem
-                        key={idx}
-                        component="div"
-                        onClick={() => {
-                          setTo(contact.email);
-                          setActiveSuggestionField(null);
-                        }}
-                        sx={{
-                          py: 0.5,
-                          cursor: 'pointer',
-                          '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)' }
-                        }}
-                      >
-                        <ListItemText
-                          primary={contact.name}
-                          secondary={contact.email}
-                          primaryTypographyProps={{ fontSize: '0.8125rem', fontWeight: 600 }}
-                          secondaryTypographyProps={{ fontSize: '0.75rem', color: '#0b57d0' }}
-                        />
-                      </ListItem>
-                    ))}
-                </List>
-              </Paper>
-            )}
-
             {/* Cc Row */}
             {showCc && (
               <Box
@@ -753,18 +683,19 @@ export default function DockedCompose({
                   bgcolor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)',
                 }}
               >
-                <Typography variant="body2" sx={{ color: theme.palette.text.secondary, width: 44, fontWeight: 500 }}>
+                <Typography variant="body2" sx={{ color: theme.palette.text.secondary, width: 44, fontWeight: 500, flexShrink: 0 }}>
                   Cc
                 </Typography>
-                <InputBase
-                  id="compose-cc-input"
-                  value={cc}
-                  onChange={(e) => setCc(e.target.value)}
-                  placeholder="Carbon copy recipients"
-                  fullWidth
-                  autoFocus
-                  sx={{ fontSize: '0.875rem', color: theme.palette.text.primary }}
-                />
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <RecipientChipInput
+                    id="compose-cc-input"
+                    label="Cc"
+                    value={cc}
+                    onChange={setCc}
+                    placeholder="Carbon copy recipients"
+                    autoFocus
+                  />
+                </Box>
                 <IconButton
                   size="small"
                   onClick={() => {
@@ -772,7 +703,7 @@ export default function DockedCompose({
                     setCc('');
                   }}
                   title="Remove Cc"
-                  sx={{ p: 0.5, color: theme.palette.text.secondary }}
+                  sx={{ p: 0.5, color: theme.palette.text.secondary, ml: 1, flexShrink: 0 }}
                 >
                   <CloseIcon sx={{ fontSize: 16 }} />
                 </IconButton>
@@ -791,18 +722,19 @@ export default function DockedCompose({
                   bgcolor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)',
                 }}
               >
-                <Typography variant="body2" sx={{ color: theme.palette.text.secondary, width: 44, fontWeight: 500 }}>
+                <Typography variant="body2" sx={{ color: theme.palette.text.secondary, width: 44, fontWeight: 500, flexShrink: 0 }}>
                   Bcc
                 </Typography>
-                <InputBase
-                  id="compose-bcc-input"
-                  value={bcc}
-                  onChange={(e) => setBcc(e.target.value)}
-                  placeholder="Blind carbon copy recipients"
-                  fullWidth
-                  autoFocus
-                  sx={{ fontSize: '0.875rem', color: theme.palette.text.primary }}
-                />
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <RecipientChipInput
+                    id="compose-bcc-input"
+                    label="Bcc"
+                    value={bcc}
+                    onChange={setBcc}
+                    placeholder="Blind carbon copy recipients"
+                    autoFocus
+                  />
+                </Box>
                 <IconButton
                   size="small"
                   onClick={() => {
@@ -810,7 +742,7 @@ export default function DockedCompose({
                     setBcc('');
                   }}
                   title="Remove Bcc"
-                  sx={{ p: 0.5, color: theme.palette.text.secondary }}
+                  sx={{ p: 0.5, color: theme.palette.text.secondary, ml: 1, flexShrink: 0 }}
                 >
                   <CloseIcon sx={{ fontSize: 16 }} />
                 </IconButton>
