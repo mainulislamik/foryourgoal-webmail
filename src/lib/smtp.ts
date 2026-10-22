@@ -24,6 +24,7 @@ export async function sendEmail(session: UserSession, options: SendMailOptions) 
   const authPass = isMaster ? masterPass : (session.password || '');
 
   const transporter = nodemailer.createTransport({
+    name: 'mail.foryourgoal.com',
     host: process.env.SMTP_HOST || '127.0.0.1',
     port: parseInt(process.env.SMTP_PORT || '587', 10),
     secure: process.env.SMTP_SECURE === 'true',
