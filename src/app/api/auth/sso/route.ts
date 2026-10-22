@@ -45,6 +45,7 @@ export async function GET(request: NextRequest) {
     sameSite: 'lax',
     path: '/',
     maxAge: 8 * 3600,
+    domain: process.env.NODE_ENV === 'production' ? '.foryourgoal.com' : undefined,
   });
 
   return response;
