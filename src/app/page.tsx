@@ -13,6 +13,7 @@ import LeftSidebar from '@/components/LeftSidebar';
 import CategoryTabs from '@/components/CategoryTabs';
 import MailList from '@/components/MailList';
 import MailReader from '@/components/MailReader';
+import PipelineBoard from '@/components/PipelineBoard';
 import DockedCompose from '@/components/DockedCompose';
 import SettingsDialog from '@/components/SettingsDialog';
 import { FolderInfo, EmailHeader } from '@/lib/imap';
@@ -60,6 +61,9 @@ export default function MailAppPage() {
     subject: '',
     body: '',
   });
+
+  // Streak CRM Pipeline view state
+  const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(null);
 
   // Settings state
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -260,6 +264,7 @@ export default function MailAppPage() {
     attachments?: Array<{ filename: string; content: string; contentType: string; size: number }>;
     priority?: 'high' | 'normal';
     requestReadReceipt?: boolean;
+    trackEmail?: boolean;
   }) => {
     try {
       const res = await fetch('/api/mail/send', {
@@ -355,9 +360,15 @@ export default function MailAppPage() {
         <LeftSidebar
           currentFolder={currentFolder}
           folders={folders}
+          selectedPipelineId={selectedPipelineId}
+          onSelectPipeline={(pipelineId) => {
+            setSelectedPipelineId(pipelineId);
+            setSelectedMessage(null);
+          }}
           onSelectFolder={(folder) => {
             setCurrentFolder(folder);
             setSelectedMessage(null);
+            setSelectedPipelineId(null);
           }}
           onOpenCompose={() =>
             setComposeState({ open: true, to: '', subject: '', body: '' })
@@ -383,7 +394,12 @@ export default function MailAppPage() {
             overflow: 'hidden',
           }}
         >
-          {selectedMessage ? (
+          {selectedPipelineId ? (
+            <PipelineBoard
+              pipelineId={selectedPipelineId}
+              onOpenMessage={() => {}}
+            />
+          ) : selectedMessage ? (
             /* Single-Pane Reader View */
             <MailReader
               message={selectedMessage}

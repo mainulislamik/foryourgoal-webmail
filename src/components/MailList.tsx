@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Checkbox,
@@ -23,6 +23,7 @@ import AttachFileIcon from '@mui/icons-material/AttachFile';
 import DriveFileMoveOutlinedIcon from '@mui/icons-material/DriveFileMoveOutlined';
 import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined';
 import DeleteForeverOutlinedIcon from '@mui/icons-material/DeleteForeverOutlined';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import {
   Menu,
   MenuItem,
@@ -67,6 +68,43 @@ export default function MailList({
   const [hoveredUid, setHoveredUid] = useState<number | null>(null);
   const [moveAnchor, setMoveAnchor] = useState<null | HTMLElement>(null);
   const [emptyDialogOpen, setEmptyDialogOpen] = useState(false);
+
+  // Streak Email Tracking state
+  const [trackingRecords, setTrackingRecords] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch('/api/tracking')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && Array.isArray(data.records)) {
+          setTrackingRecords(data.records);
+        }
+      })
+      .catch(() => {});
+  }, [currentFolder, messages]);
+
+  const isSentFolder =
+    currentFolder.toLowerCase().includes('sent') || currentFolder.toUpperCase() === 'SENT';
+
+  const getTrackingForMessage = (msg: EmailHeader) => {
+    if (!trackingRecords || trackingRecords.length === 0) return null;
+    if (msg.messageId) {
+      const cleanMid = msg.messageId.replace(/[<>]/g, '').trim();
+      const match = trackingRecords.find(
+        (r) => r.messageId && r.messageId.replace(/[<>]/g, '').trim() === cleanMid
+      );
+      if (match) return match;
+    }
+    const cleanSub = (msg.subject || '').replace(/^(re|fwd|fw):\s*/i, '').trim().toLowerCase();
+    if (cleanSub) {
+      const match = trackingRecords.find((r) => {
+        const rSub = (r.subject || '').replace(/^(re|fwd|fw):\s*/i, '').trim().toLowerCase();
+        return rSub === cleanSub;
+      });
+      if (match) return match;
+    }
+    return null;
+  };
 
   // Compute row height and typography based on density
   const rowHeight = density === 'compact' ? 32 : density === 'comfortable' ? 48 : 40;
@@ -387,7 +425,7 @@ export default function MailList({
                   )}
                 </Box>
 
-                {/* Sender Name */}
+                {/* Sender / Recipient Name */}
                 <Box sx={{ display: 'flex', alignItems: 'center', width: 210, minWidth: 210, mr: 1 }}>
                   <Typography
                     noWrap
@@ -397,7 +435,9 @@ export default function MailList({
                       color: msg.unread ? theme.palette.text.primary : theme.palette.text.secondary,
                     }}
                   >
-                    {msg.from[0]?.name || msg.from[0]?.address || 'Unknown'}
+                    {isSentFolder && msg.to && msg.to.length > 0
+                      ? `To: ${msg.to[0]?.name || msg.to[0]?.address || 'Unknown'}`
+                      : msg.from[0]?.name || msg.from[0]?.address || 'Unknown'}
                   </Typography>
                   {threadCount > 1 && (
                     <Typography
@@ -417,6 +457,75 @@ export default function MailList({
                     </Typography>
                   )}
                 </Box>
+
+                {/* Streak Email Tracking Indicator */}
+                {(() => {
+                  const trk = getTrackingForMessage(msg);
+                  if (!trk && !isSentFolder) return null;
+                  const isOpened = Boolean(trk && trk.openCount > 0);
+                  const openCount = trk ? trk.openCount : 0;
+                  const lastOpened = trk?.lastOpenedAt
+                    ? new Date(trk.lastOpenedAt).toLocaleString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })
+                    : null;
+                  const tooltipText = isOpened
+                    ? `Read ${openCount} time${openCount > 1 ? 's' : ''}${lastOpened ? `. Last read: ${lastOpened}` : ''}`
+                    : 'Not yet opened';
+
+                  return (
+                    <Tooltip title={tooltipText} arrow placement="top">
+                      <Box
+                        component="span"
+                        onClick={(e) => e.stopPropagation()}
+                        sx={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 0.35,
+                          mr: 1.2,
+                          px: 0.6,
+                          py: 0.2,
+                          borderRadius: '4px',
+                          backgroundColor: isOpened
+                            ? isDark
+                              ? 'rgba(22, 163, 74, 0.2)'
+                              : 'rgba(22, 163, 74, 0.1)'
+                            : isDark
+                            ? 'rgba(255, 255, 255, 0.05)'
+                            : 'rgba(0, 0, 0, 0.04)',
+                          border: isOpened
+                            ? '1px solid rgba(22, 163, 74, 0.3)'
+                            : '1px solid transparent',
+                          cursor: 'pointer',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <VisibilityIcon
+                          sx={{
+                            fontSize: 14,
+                            color: isOpened ? '#16a34a' : isDark ? '#9aa0a6' : '#80868b',
+                          }}
+                        />
+                        {isOpened && (
+                          <Typography
+                            component="span"
+                            sx={{
+                              fontSize: '0.6875rem',
+                              fontWeight: 700,
+                              color: '#16a34a',
+                              lineHeight: 1,
+                            }}
+                          >
+                            {openCount}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Tooltip>
+                  );
+                })()}
 
                 {/* Subject and Snippet */}
                 <Box

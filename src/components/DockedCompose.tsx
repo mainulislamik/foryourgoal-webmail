@@ -48,6 +48,15 @@ import DoneAllIcon from '@mui/icons-material/DoneAll';
 import ScheduleSendIcon from '@mui/icons-material/ScheduleSend';
 import ArticleOutlinedIcon from '@mui/icons-material/ArticleOutlined';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
+import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import AddIcon from '@mui/icons-material/Add';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import SaveAltIcon from '@mui/icons-material/SaveAlt';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 
 
 const CANNED_TEMPLATES = [
@@ -83,6 +92,17 @@ interface ComposeState {
   inReplyTo?: string;
 }
 
+export interface EmailTemplateItem {
+  id: string;
+  userEmail: string;
+  title: string;
+  subject: string;
+  bodyHtml: string;
+  category?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface DockedComposeProps {
   state: ComposeState;
   onClose: () => void;
@@ -95,6 +115,7 @@ interface DockedComposeProps {
     attachments?: Array<{ filename: string; content: string; contentType: string; size: number }>;
     priority?: 'high' | 'normal';
     requestReadReceipt?: boolean;
+    trackEmail?: boolean;
   }) => void;
   signature?: string;
   onOpenSettings?: () => void;
@@ -123,44 +144,234 @@ export default function DockedCompose({
   const [aiGenerating, setAiGenerating] = useState(false);
   const [sigAnchorEl, setSigAnchorEl] = useState<null | HTMLElement>(null);
 
-  // Link dialog
-  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
-  const [linkText, setLinkText] = useState('');
-  const [linkUrl, setLinkUrl] = useState('');
+  // Streak Email Tracking toggle (default ON)
+  const [trackEmail, setTrackEmail] = useState<boolean>(true);
 
-  // Image upload
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const imageInputRef = useRef<HTMLInputElement>(null);
+  // Dynamic Email Templates state
+  const [templates, setTemplates] = useState<EmailTemplateItem[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [templateAnchor, setTemplateAnchor] = useState<null | HTMLElement>(null);
 
-  // File attachments
+  // Template Save Dialog
+  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
+  const [saveTemplateTitle, setSaveTemplateTitle] = useState('');
+  const [savingTemplate, setSavingTemplate] = useState(false);
+
+  // Manage Templates Modal
+  const [manageTemplatesOpen, setManageTemplatesOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<EmailTemplateItem | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editSubject, setEditSubject] = useState('');
+  const [editBody, setEditBody] = useState('');
+  const [isNewTemplateInManage, setIsNewTemplateInManage] = useState(false);
+  const [savingEditTemplate, setSavingEditTemplate] = useState(false);
+
+  // Priority & Delivery receipts
+  const [priority, setPriority] = useState<'high' | 'normal'>('normal');
+  const [requestReceipt, setRequestReceipt] = useState(false);
+
+  // Attachments & uploads
   const [attachments, setAttachments] = useState<
     Array<{ filename: string; content: string; contentType: string; size: number }>
   >([]);
   const fileAttachmentInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
-  // Message options: Priority & Read Receipt
-  const [priority, setPriority] = useState<'normal' | 'high'>('normal');
-  const [requestReceipt, setRequestReceipt] = useState(false);
-  const [moreMenuAnchor, setMoreMenuAnchor] = useState<null | HTMLElement>(null);
-
-  // Auto-save draft status
-  const [draftSavedText, setDraftSavedText] = useState<string>('');
-  
-  // Schedule Send state
-  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  // Scheduled Send
   const [scheduleDateTime, setScheduleDateTime] = useState('');
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [sendMenuAnchor, setSendMenuAnchor] = useState<null | HTMLElement>(null);
 
-  // Canned Templates menu
-  const [templateAnchor, setTemplateAnchor] = useState<null | HTMLElement>(null);
+  // Link Dialog
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [linkText, setLinkText] = useState('');
+  const [linkUrl, setLinkUrl] = useState('');
 
-  const handleApplyTemplate = (tmpl: { title: string; subject: string; body: string }) => {
-    setSubject(tmpl.subject);
+  // Auto-save draft indicator
+  const [draftSavedText, setDraftSavedText] = useState('');
+
+  // Fetch templates from API
+  const fetchTemplates = async () => {
+    setLoadingTemplates(true);
+    try {
+      const res = await fetch('/api/templates');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.templates)) {
+          setTemplates(data.templates);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load templates:', err);
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTemplates();
+  }, []);
+
+  // Placeholders replacer for templates
+  const replacePlaceholders = (text: string) => {
+    const recipientEmail = to.trim();
+    const recipientName = recipientEmail.includes('@')
+      ? recipientEmail.split('@')[0]
+      : recipientEmail || 'Friend';
+    const senderName = user?.displayName || user?.email?.split('@')[0] || 'Me';
+    const senderEmail = user?.email || '';
+    const dateFormatted = new Date().toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+
+    return text
+      .replace(/\{\{recipient_name\}\}/gi, recipientName)
+      .replace(/\{\{recipient_email\}\}/gi, recipientEmail)
+      .replace(/\{\{sender_name\}\}/gi, senderName)
+      .replace(/\{\{date\}\}/gi, dateFormatted);
+  };
+
+  // Insert template into compose
+  const handleApplyTemplate = (tmpl: { title: string; subject: string; bodyHtml?: string; body?: string }) => {
+    const rawBody = tmpl.bodyHtml || tmpl.body || '';
+    if (!subject.trim() && tmpl.subject) {
+      setSubject(replacePlaceholders(tmpl.subject));
+    }
+    const processedBody = replacePlaceholders(rawBody);
+
     if (editorRef.current) {
-      const sigBlock = signature ? `<div data-fyg-signature="true"><br><br>${signature}</div>` : '';
-      editorRef.current.innerHTML = tmpl.body + sigBlock;
+      const currentHtml = editorRef.current.innerHTML || '';
+      const quoteIndex = currentHtml.indexOf('<div style="border-left: 2px solid');
+      const fwdIndex = currentHtml.indexOf('---------- Forwarded message ---------');
+      const sigIndex = currentHtml.indexOf('data-fyg-signature');
+
+      if (quoteIndex !== -1) {
+        const quotePart = currentHtml.substring(quoteIndex);
+        editorRef.current.innerHTML = `${processedBody}<br><br>${quotePart}`;
+      } else if (fwdIndex !== -1) {
+        editorRef.current.innerHTML = `${processedBody}<br><br>${currentHtml}`;
+      } else if (sigIndex !== -1) {
+        const sigContainerStart = currentHtml.lastIndexOf('<div data-fyg-signature="true">');
+        if (sigContainerStart !== -1) {
+          const sigPart = currentHtml.substring(sigContainerStart);
+          editorRef.current.innerHTML = `${processedBody}<br>${sigPart}`;
+        } else {
+          editorRef.current.innerHTML = `${processedBody}<br><br>${signature ? `<div data-fyg-signature="true"><br><br>${signature}</div>` : ''}`;
+        }
+      } else {
+        const sigBlock = signature ? `<div data-fyg-signature="true"><br><br>${signature}</div>` : '';
+        editorRef.current.innerHTML = processedBody + sigBlock;
+      }
     }
     setTemplateAnchor(null);
+  };
+
+  // Save current draft as a new template
+  const handleSaveDraftAsTemplate = async () => {
+    if (!saveTemplateTitle.trim()) {
+      alert('Please enter a title for this template');
+      return;
+    }
+    setSavingTemplate(true);
+    try {
+      const htmlContent = editorRef.current?.innerHTML || '';
+      let cleanBody = htmlContent;
+      const sigIndex = cleanBody.indexOf('<div data-fyg-signature="true">');
+      if (sigIndex !== -1) {
+        cleanBody = cleanBody.substring(0, sigIndex);
+      }
+      const quoteIndex = cleanBody.indexOf('<div style="border-left: 2px solid');
+      if (quoteIndex !== -1) {
+        cleanBody = cleanBody.substring(0, quoteIndex);
+      }
+
+      const res = await fetch('/api/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: saveTemplateTitle.trim(),
+          subject: subject.trim(),
+          bodyHtml: cleanBody.trim() || htmlContent,
+        }),
+      });
+
+      if (res.ok) {
+        await fetchTemplates();
+        setSaveTemplateOpen(false);
+        setSaveTemplateTitle('');
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to save template');
+      }
+    } catch (err) {
+      console.error('Error saving template:', err);
+      alert('Failed to save template');
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
+
+  // Manage templates handlers
+  const handleDeleteTemplate = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this template?')) return;
+    try {
+      const res = await fetch(`/api/templates/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        await fetchTemplates();
+        if (editingTemplate?.id === id) {
+          setEditingTemplate(null);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to delete template:', err);
+    }
+  };
+
+  const handleSaveEditedTemplate = async () => {
+    if (!editTitle.trim()) {
+      alert('Please enter a template title');
+      return;
+    }
+    setSavingEditTemplate(true);
+    try {
+      if (isNewTemplateInManage) {
+        const res = await fetch('/api/templates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: editTitle.trim(),
+            subject: editSubject.trim(),
+            bodyHtml: editBody.trim(),
+          }),
+        });
+        if (res.ok) {
+          await fetchTemplates();
+          setEditingTemplate(null);
+          setIsNewTemplateInManage(false);
+        }
+      } else if (editingTemplate) {
+        const res = await fetch(`/api/templates/${editingTemplate.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: editTitle.trim(),
+            subject: editSubject.trim(),
+            bodyHtml: editBody.trim(),
+          }),
+        });
+        if (res.ok) {
+          await fetchTemplates();
+          setEditingTemplate(null);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to save edited template:', err);
+    } finally {
+      setSavingEditTemplate(false);
+    }
   };
 
   const handleScheduleSendSubmit = () => {
@@ -238,6 +449,7 @@ export default function DockedCompose({
       attachments: attachments.length > 0 ? attachments : undefined,
       priority,
       requestReadReceipt: requestReceipt,
+      trackEmail,
     });
     // Clear draft upon sending
     if (typeof window !== 'undefined') {
@@ -1144,6 +1356,154 @@ export default function DockedCompose({
                   multiple
                   onChange={handleFileAttach}
                 />
+
+                {/* Templates Button */}
+                <Tooltip title="Templates (Canned Responses)">
+                  <IconButton
+                    size="small"
+                    onClick={(e) => setTemplateAnchor(e.currentTarget)}
+                    id="compose-templates-button"
+                    sx={{
+                      color: templateAnchor ? '#0284c7' : theme.palette.text.secondary,
+                      p: 0.5,
+                      borderRadius: 1,
+                      backgroundColor: templateAnchor ? 'rgba(2, 132, 199, 0.1)' : 'transparent',
+                    }}
+                  >
+                    <BookmarkBorderIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+
+                {/* Streak Email Tracking Toggle */}
+                <Tooltip title={trackEmail ? 'Email tracking is ON (Streak)' : 'Email tracking is OFF (Streak)'}>
+                  <IconButton
+                    size="small"
+                    onClick={() => setTrackEmail((prev) => !prev)}
+                    id="compose-track-email-button"
+                    sx={{
+                      color: trackEmail ? '#f97316' : theme.palette.text.secondary,
+                      bgcolor: trackEmail ? 'rgba(249, 115, 22, 0.12)' : 'transparent',
+                      p: 0.5,
+                      borderRadius: 1,
+                      border: trackEmail ? '1px solid rgba(249, 115, 22, 0.3)' : '1px solid transparent',
+                      '&:hover': {
+                        bgcolor: trackEmail ? 'rgba(249, 115, 22, 0.2)' : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'),
+                      },
+                    }}
+                  >
+                    {trackEmail ? <VisibilityIcon fontSize="small" /> : <VisibilityOffIcon fontSize="small" />}
+                  </IconButton>
+                </Tooltip>
+
+                {/* Template Action Menu */}
+                <Menu
+                  anchorEl={templateAnchor}
+                  open={Boolean(templateAnchor)}
+                  onClose={() => setTemplateAnchor(null)}
+                  PaperProps={{
+                    sx: {
+                      borderRadius: '16px',
+                      minWidth: 260,
+                      maxWidth: 360,
+                      maxHeight: 450,
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.18)',
+                      zIndex: 9999,
+                    },
+                  }}
+                  sx={{ zIndex: 9999 }}
+                  anchorOrigin={{
+                    vertical: 'top',
+                    horizontal: 'left',
+                  }}
+                  transformOrigin={{
+                    vertical: 'bottom',
+                    horizontal: 'left',
+                  }}
+                >
+                  <Box sx={{ px: 2, py: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                      Email Templates
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Insert reusable canned responses
+                    </Typography>
+                  </Box>
+
+                  <Typography variant="caption" sx={{ px: 2, pt: 1, pb: 0.5, display: 'block', fontWeight: 600, color: 'text.secondary' }}>
+                    INSERT TEMPLATE
+                  </Typography>
+
+                  {loadingTemplates ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+                      <CircularProgress size={20} />
+                    </Box>
+                  ) : templates.length === 0 ? (
+                    CANNED_TEMPLATES.map((tmpl, idx) => (
+                      <MenuItem
+                        key={`canned-${idx}`}
+                        onClick={() => handleApplyTemplate(tmpl)}
+                        sx={{ py: 1 }}
+                      >
+                        <ListItemIcon>
+                          <ArticleOutlinedIcon fontSize="small" color="primary" />
+                        </ListItemIcon>
+                        <ListItemText
+                          primary={tmpl.title}
+                          secondary={tmpl.subject}
+                          primaryTypographyProps={{ variant: 'body2', noWrap: true, fontWeight: 500 }}
+                          secondaryTypographyProps={{ variant: 'caption', noWrap: true }}
+                        />
+                      </MenuItem>
+                    ))
+                  ) : (
+                    templates.map((tmpl) => (
+                      <MenuItem
+                        key={tmpl.id}
+                        onClick={() => handleApplyTemplate(tmpl)}
+                        sx={{ py: 1 }}
+                      >
+                        <ListItemIcon>
+                          <ArticleOutlinedIcon fontSize="small" sx={{ color: '#0284c7' }} />
+                        </ListItemIcon>
+                        <ListItemText
+                          primary={tmpl.title}
+                          secondary={tmpl.subject || '(no subject)'}
+                          primaryTypographyProps={{ variant: 'body2', noWrap: true, fontWeight: 500 }}
+                          secondaryTypographyProps={{ variant: 'caption', noWrap: true }}
+                        />
+                      </MenuItem>
+                    ))
+                  )}
+
+                  <Divider sx={{ my: 0.5 }} />
+
+                  <MenuItem
+                    onClick={() => {
+                      setTemplateAnchor(null);
+                      setSaveTemplateTitle(subject ? `Template: ${subject}` : '');
+                      setSaveTemplateOpen(true);
+                    }}
+                  >
+                    <ListItemIcon>
+                      <SaveAltIcon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText primary="Save draft as template..." />
+                  </MenuItem>
+
+                  <MenuItem
+                    onClick={() => {
+                      setTemplateAnchor(null);
+                      setEditingTemplate(null);
+                      setIsNewTemplateInManage(false);
+                      setManageTemplatesOpen(true);
+                    }}
+                  >
+                    <ListItemIcon>
+                      <SettingsOutlinedIcon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText primary="Manage templates..." />
+                  </MenuItem>
+                </Menu>
               </Box>
 
               {/* Status and Action Buttons */}
@@ -1285,6 +1645,217 @@ export default function DockedCompose({
             sx={{ borderRadius: '16px', backgroundColor: '#0284c7' }}
           >
             OK
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Save Draft As Template Dialog */}
+      <Dialog
+        open={saveTemplateOpen}
+        onClose={() => setSaveTemplateOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: '20px', p: 1 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <SaveAltIcon color="primary" /> Save Draft as Template
+        </DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+          <Typography variant="body2" color="text.secondary">
+            Save this current email subject and body as a reusable template. You can use placeholders like <code>{'{{recipient_name}}'}</code>, <code>{'{{sender_name}}'}</code>, <code>{'{{date}}'}</code>.
+          </Typography>
+          <TextField
+            autoFocus
+            label="Template Title"
+            fullWidth
+            size="small"
+            value={saveTemplateTitle}
+            onChange={(e) => setSaveTemplateTitle(e.target.value)}
+            placeholder="e.g. Sales Intro, Follow-up"
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setSaveTemplateOpen(false)} sx={{ borderRadius: '16px' }}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSaveDraftAsTemplate}
+            variant="contained"
+            disabled={savingTemplate || !saveTemplateTitle.trim()}
+            sx={{ borderRadius: '16px', bgcolor: '#0284c7' }}
+          >
+            {savingTemplate ? 'Saving...' : 'Save Template'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Manage Templates Dialog */}
+      <Dialog
+        open={manageTemplatesOpen}
+        onClose={() => {
+          setManageTemplatesOpen(false);
+          setEditingTemplate(null);
+          setIsNewTemplateInManage(false);
+        }}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: '20px', p: 1, minHeight: 480 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <BookmarkBorderIcon color="primary" /> Manage Templates
+          </Box>
+          <Button
+            startIcon={<AddIcon />}
+            variant="outlined"
+            size="small"
+            onClick={() => {
+              setEditingTemplate({
+                id: '',
+                userEmail: '',
+                title: '',
+                subject: '',
+                bodyHtml: '',
+                createdAt: '',
+                updatedAt: '',
+              });
+              setEditTitle('');
+              setEditSubject('');
+              setEditBody('');
+              setIsNewTemplateInManage(true);
+            }}
+            sx={{ borderRadius: '16px' }}
+          >
+            New Template
+          </Button>
+        </DialogTitle>
+        <DialogContent dividers sx={{ display: 'flex', gap: 2, p: 2 }}>
+          {/* Templates list on left */}
+          <Box sx={{ width: '40%', borderRight: '1px solid', borderColor: 'divider', pr: 2, overflowY: 'auto', maxHeight: 400 }}>
+            {templates.length === 0 ? (
+              <Typography variant="body2" color="text.secondary" sx={{ p: 2, textAlign: 'center' }}>
+                No custom templates yet. Click &quot;New Template&quot; or save your draft as a template.
+              </Typography>
+            ) : (
+              templates.map((tmpl) => (
+                <Box
+                  key={tmpl.id}
+                  onClick={() => {
+                    setEditingTemplate(tmpl);
+                    setEditTitle(tmpl.title);
+                    setEditSubject(tmpl.subject);
+                    setEditBody(tmpl.bodyHtml);
+                    setIsNewTemplateInManage(false);
+                  }}
+                  sx={{
+                    p: 1.5,
+                    mb: 1,
+                    borderRadius: '12px',
+                    cursor: 'pointer',
+                    bgcolor: editingTemplate?.id === tmpl.id ? (isDark ? 'rgba(2, 132, 199, 0.2)' : 'rgba(2, 132, 199, 0.08)') : (isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)'),
+                    border: '1px solid',
+                    borderColor: editingTemplate?.id === tmpl.id ? '#0284c7' : 'divider',
+                    '&:hover': {
+                      bgcolor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                    },
+                  }}
+                >
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <Typography variant="subtitle2" noWrap sx={{ fontWeight: 600 }}>
+                      {tmpl.title}
+                    </Typography>
+                    <IconButton
+                      size="small"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteTemplate(tmpl.id);
+                      }}
+                      sx={{ color: '#ef4444', p: 0.2 }}
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                  <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
+                    {tmpl.subject || '(no subject)'}
+                  </Typography>
+                </Box>
+              ))
+            )}
+          </Box>
+
+          {/* Edit form on right */}
+          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, pl: 1 }}>
+            {editingTemplate ? (
+              <>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                  {isNewTemplateInManage ? 'Create New Template' : `Edit Template: ${editingTemplate.title}`}
+                </Typography>
+                <TextField
+                  label="Template Title"
+                  fullWidth
+                  size="small"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  placeholder="e.g. Follow up email"
+                />
+                <TextField
+                  label="Default Subject"
+                  fullWidth
+                  size="small"
+                  value={editSubject}
+                  onChange={(e) => setEditSubject(e.target.value)}
+                  placeholder="e.g. Following up on {{recipient_name}}"
+                />
+                <TextField
+                  label="Body (HTML or Text)"
+                  fullWidth
+                  multiline
+                  rows={8}
+                  size="small"
+                  value={editBody}
+                  onChange={(e) => setEditBody(e.target.value)}
+                  placeholder="Hello {{recipient_name}}, ..."
+                />
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 'auto' }}>
+                  <Button
+                    onClick={() => {
+                      setEditingTemplate(null);
+                      setIsNewTemplateInManage(false);
+                    }}
+                    color="inherit"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="contained"
+                    onClick={handleSaveEditedTemplate}
+                    disabled={savingEditTemplate || !editTitle.trim()}
+                    sx={{ borderRadius: '12px', bgcolor: '#0284c7' }}
+                  >
+                    {savingEditTemplate ? 'Saving...' : 'Save Changes'}
+                  </Button>
+                </Box>
+              </>
+            ) : (
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'text.secondary' }}>
+                <BookmarkBorderIcon sx={{ fontSize: 48, mb: 1, opacity: 0.4 }} />
+                <Typography variant="body2">
+                  Select a template on the left to edit or click &quot;New Template&quot;.
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            onClick={() => {
+              setManageTemplatesOpen(false);
+              setEditingTemplate(null);
+              setIsNewTemplateInManage(false);
+            }}
+            sx={{ borderRadius: '16px' }}
+          >
+            Close
           </Button>
         </DialogActions>
       </Dialog>

@@ -25,6 +25,7 @@ import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined';
 import CreateNewFolderOutlinedIcon from '@mui/icons-material/CreateNewFolderOutlined';
 import AddIcon from '@mui/icons-material/Add';
 import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline';
+import WorkOutlineIcon from '@mui/icons-material/WorkOutline';
 import {
   Dialog,
   DialogTitle,
@@ -45,6 +46,8 @@ interface LeftSidebarProps {
   onComposeContact: (email: string) => void;
   onRefreshFolders?: () => void;
   collapsed?: boolean;
+  selectedPipelineId?: string | null;
+  onSelectPipeline?: (pipelineId: string) => void;
 }
 
 export default function LeftSidebar({
@@ -55,6 +58,8 @@ export default function LeftSidebar({
   onComposeContact,
   onRefreshFolders,
   collapsed = false,
+  selectedPipelineId = null,
+  onSelectPipeline,
 }: LeftSidebarProps) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -63,6 +68,30 @@ export default function LeftSidebar({
   const [newFolderName, setNewFolderName] = useState('');
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [contactsOpen, setContactsOpen] = useState(false);
+
+  // Streak CRM Pipelines
+  const [crmPipelines, setCrmPipelines] = useState<any[]>([]);
+  const [pipelineDealCounts, setPipelineDealCounts] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    fetch('/api/crm/pipelines')
+      .then((res) => (res.ok ? res.json() : null))
+      .then(async (data) => {
+        if (data && data.pipelines) {
+          setCrmPipelines(data.pipelines);
+          const counts: Record<string, number> = {};
+          for (const p of data.pipelines) {
+            try {
+              const dRes = await fetch(`/api/crm/deals?pipelineId=${p.id}`);
+              const dData = await dRes.json();
+              counts[p.id] = dData.deals?.length || 0;
+            } catch {}
+          }
+          setPipelineDealCounts(counts);
+        }
+      })
+      .catch(() => {});
+  }, [selectedPipelineId]);
 
   const [quota, setQuota] = useState<{
     usedFormatted: string;
@@ -312,6 +341,111 @@ export default function LeftSidebar({
             );
           })}
         </List>
+
+        {/* Streak CRM Pipelines Section */}
+        {crmPipelines.length > 0 && (
+          <Box sx={{ mt: 2 }}>
+            {!collapsed && (
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  px: 2,
+                  mb: 0.5,
+                }}
+              >
+                <Typography
+                  variant="caption"
+                  sx={{
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    color: '#f97316',
+                  }}
+                >
+                  CRM Pipelines
+                </Typography>
+              </Box>
+            )}
+
+            <List sx={{ p: 0 }}>
+              {crmPipelines.map((p) => {
+                const isActive = selectedPipelineId === p.id;
+                const dealCount = pipelineDealCounts[p.id] || 0;
+                return (
+                  <ListItem key={p.id} disablePadding sx={{ mb: 0.5 }}>
+                    <ListItemButton
+                      onClick={() => {
+                        if (onSelectPipeline) onSelectPipeline(p.id);
+                      }}
+                      sx={{
+                        borderRadius: '24px',
+                        height: 36,
+                        px: collapsed ? 1.5 : 2.5,
+                        backgroundColor: isActive
+                          ? isDark
+                            ? 'rgba(249, 115, 22, 0.25)'
+                            : '#ffedd5'
+                          : 'transparent',
+                        color: isActive
+                          ? isDark
+                            ? '#fdba74'
+                            : '#ea580c'
+                          : theme.palette.text.secondary,
+                        fontWeight: isActive ? 700 : 500,
+                        '&:hover': {
+                          backgroundColor: isActive
+                            ? isDark
+                              ? 'rgba(249, 115, 22, 0.3)'
+                              : '#fed7aa'
+                            : isDark
+                            ? '#2b2d30'
+                            : '#eaebef',
+                        },
+                      }}
+                    >
+                      <ListItemIcon
+                        sx={{
+                          minWidth: collapsed ? 0 : 36,
+                          color: isActive
+                            ? '#f97316'
+                            : theme.palette.text.secondary,
+                        }}
+                      >
+                        <WorkOutlineIcon fontSize="small" />
+                      </ListItemIcon>
+
+                      {!collapsed && (
+                        <ListItemText
+                          primary={p.name}
+                          primaryTypographyProps={{
+                            fontSize: '0.875rem',
+                            fontWeight: isActive ? 700 : 500,
+                            noWrap: true,
+                          }}
+                        />
+                      )}
+
+                      {!collapsed && (
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            fontWeight: 700,
+                            fontSize: '0.75rem',
+                            color: isActive ? '#f97316' : theme.palette.text.secondary,
+                          }}
+                        >
+                          {dealCount}
+                        </Typography>
+                      )}
+                    </ListItemButton>
+                  </ListItem>
+                );
+              })}
+            </List>
+          </Box>
+        )}
 
         {/* Custom Folders / Labels Section */}
         {!collapsed && (

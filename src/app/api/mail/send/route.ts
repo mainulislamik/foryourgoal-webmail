@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { sendEmail } from '@/lib/smtp';
 import { createImapClient } from '@/lib/imap';
+import { createTrackingRecord } from '@/lib/tracking';
+import crypto from 'crypto';
 
 export async function POST(request: NextRequest) {
   const session = await getSession();
@@ -11,8 +13,20 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { to, cc, bcc, subject, text, html: htmlField, body: bodyField, attachments, priority, requestReadReceipt } = body;
-    const html = htmlField || bodyField;
+    const {
+      to,
+      cc,
+      bcc,
+      subject,
+      text,
+      html: htmlField,
+      body: bodyField,
+      attachments,
+      priority,
+      requestReadReceipt,
+      trackEmail,
+    } = body;
+    let html = htmlField || bodyField;
 
     if (!to || (!subject && !text && !html && !bodyField)) {
       return NextResponse.json({ error: 'Recipient and content are required' }, { status: 400 });
@@ -45,6 +59,21 @@ export async function POST(request: NextRequest) {
       customHeaders['Disposition-Notification-To'] = session.email;
     }
 
+    // Email Tracking via Streak pixel
+    let trackingId: string | undefined;
+    if (trackEmail === true) {
+      trackingId = 'trk_' + crypto.randomUUID();
+      customHeaders['X-Tracking-ID'] = trackingId;
+      const trackingPixel = `<img src="https://mail.foryourgoal.com/api/tracking/open/${trackingId}" width="1" height="1" style="display:none!important;" alt="" />`;
+      if (html) {
+        html = `${html}${trackingPixel}`;
+      } else if (text) {
+        html = `<div style="font-family: sans-serif; font-size: 14px; color: #202124;">${text.replace(/\n/g, '<br/>')}</div>${trackingPixel}`;
+      } else {
+        html = trackingPixel;
+      }
+    }
+
     // Send email via SMTP
     const info = await sendEmail(session, {
       to,
@@ -56,6 +85,21 @@ export async function POST(request: NextRequest) {
       attachments: formattedAttachments,
       headers: Object.keys(customHeaders).length > 0 ? customHeaders : undefined,
     });
+
+    // Save tracking record if tracking is enabled
+    if (trackingId) {
+      try {
+        await createTrackingRecord({
+          id: trackingId,
+          senderEmail: session.email,
+          recipientEmail: Array.isArray(to) ? to.join(', ') : String(to),
+          subject: subject || '(no subject)',
+          messageId: info.messageId,
+        });
+      } catch (trackErr) {
+        console.error('Failed to create initial tracking record:', trackErr);
+      }
+    }
 
     // Optionally append to Sent mailbox
     try {

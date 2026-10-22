@@ -45,6 +45,7 @@ export interface EmailHeader {
   size: number;
   snippet?: string;
   hasAttachment?: boolean;
+  messageId?: string;
 }
 
 export interface EmailDetail extends EmailHeader {

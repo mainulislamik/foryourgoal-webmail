@@ -42,6 +42,17 @@ import AccessTimeOutlinedIcon from '@mui/icons-material/AccessTimeOutlined';
 import BlockOutlinedIcon from '@mui/icons-material/BlockOutlined';
 import EventAvailableOutlinedIcon from '@mui/icons-material/EventAvailableOutlined';
 import SecurityOutlinedIcon from '@mui/icons-material/SecurityOutlined';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import WorkOutlineIcon from '@mui/icons-material/WorkOutline';
+import ViewSidebarOutlinedIcon from '@mui/icons-material/ViewSidebarOutlined';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
+import AddIcon from '@mui/icons-material/Add';
+import TextField from '@mui/material/TextField';
+import Select from '@mui/material/Select';
+import CrmSidebar from '@/components/CrmSidebar';
+import { Deal, Pipeline } from '@/lib/crm';
+import { TrackingRecord } from '@/lib/tracking';
 import { EmailHeader, FolderInfo } from '@/lib/imap';
 
 interface EmailDetail extends EmailHeader {
@@ -100,6 +111,90 @@ export default function MailReader({
   const [showExternalImages, setShowExternalImages] = useState(false);
   const [rsvpStatus, setRsvpStatus] = useState<'none' | 'accepted' | 'maybe' | 'declined'>('none');
   const [blockedSenders, setBlockedSenders] = useState<string[]>([]);
+
+  // Streak Email Tracking state
+  const [trackingRecord, setTrackingRecord] = useState<TrackingRecord | null>(null);
+  const [trackingTimelineOpen, setTrackingTimelineOpen] = useState(false);
+
+  // CRM Deal and Pipeline state
+  const [deal, setDeal] = useState<Deal | null>(null);
+  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
+  const [crmDrawerOpen, setCrmDrawerOpen] = useState(false);
+  const [addDealOpen, setAddDealOpen] = useState(false);
+  const [newDealTitle, setNewDealTitle] = useState('');
+  const [newDealValue, setNewDealValue] = useState('0');
+  const [newDealPipelineId, setNewDealPipelineId] = useState('');
+  const [newDealStageId, setNewDealStageId] = useState('');
+
+  const isSent =
+    currentFolder.toLowerCase().includes('sent') || currentFolder.toUpperCase() === 'SENT';
+
+  // Fetch tracking record for this message
+  useEffect(() => {
+    fetch('/api/tracking')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && Array.isArray(data.records)) {
+          const recs: TrackingRecord[] = data.records;
+          let match: TrackingRecord | undefined;
+          if (message.messageId) {
+            const cleanMid = message.messageId.replace(/[<>]/g, '').trim();
+            match = recs.find(
+              (r) => r.messageId && r.messageId.replace(/[<>]/g, '').trim() === cleanMid
+            );
+          }
+          if (!match && message.subject) {
+            const cleanSub = message.subject.replace(/^(re|fwd|fw):\s*/i, '').trim().toLowerCase();
+            match = recs.find((r) => {
+              const rSub = (r.subject || '').replace(/^(re|fwd|fw):\s*/i, '').trim().toLowerCase();
+              return rSub === cleanSub;
+            });
+          }
+          if (match) {
+            setTrackingRecord(match);
+          }
+        }
+      })
+      .catch(() => {});
+  }, [message]);
+
+  // Fetch pipelines & check if email is linked to a CRM deal
+  useEffect(() => {
+    fetch('/api/crm/pipelines')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.pipelines) {
+          setPipelines(data.pipelines);
+          if (data.pipelines[0]) {
+            setNewDealPipelineId(data.pipelines[0].id);
+            setNewDealStageId(data.pipelines[0].stages[0]?.id || 'lead');
+          }
+        }
+      })
+      .catch(() => {});
+
+    const contactEmail = message.from[0]?.address || '';
+    const mid = message.messageId || '';
+    const sub = message.subject || '';
+
+    fetch(
+      `/api/crm/deals?messageId=${encodeURIComponent(mid)}&contactEmail=${encodeURIComponent(contactEmail)}&subject=${encodeURIComponent(sub)}`
+    )
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.deal) {
+          setDeal(data.deal);
+        } else {
+          setDeal(null);
+        }
+      })
+      .catch(() => {});
+  }, [message]);
+
+  const activePipeline =
+    pipelines.find((p) => p.id === deal?.pipelineId) ||
+    pipelines[0] ||
+    null;
 
   // Load blocked senders
   useEffect(() => {
@@ -183,6 +278,48 @@ export default function MailReader({
   };
 
   const movableFolders = folders.filter((f) => f.path !== currentFolder);
+
+  const handleStageChange = async (newStageId: string) => {
+    if (!deal) return;
+    try {
+      const res = await fetch(`/api/crm/deals/${deal.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stageId: newStageId }),
+      });
+      const data = await res.json();
+      if (data.deal) setDeal(data.deal);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleCreateDealSubmit = async () => {
+    if (!newDealTitle.trim()) return;
+    try {
+      const res = await fetch('/api/crm/deals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newDealTitle.trim(),
+          pipelineId: newDealPipelineId || pipelines[0]?.id || 'sales_leads',
+          stageId: newDealStageId || pipelines[0]?.stages[0]?.id || 'lead',
+          contactEmail: message.from[0]?.address || '',
+          contactName: message.from[0]?.name || '',
+          dealValue: parseFloat(newDealValue) || 0,
+          messageId: message.messageId || '',
+        }),
+      });
+      const data = await res.json();
+      if (data.deal) {
+        setDeal(data.deal);
+        setAddDealOpen(false);
+        setCrmDrawerOpen(true);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   return (
     <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
@@ -314,6 +451,28 @@ export default function MailReader({
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Button
+            size="small"
+            variant={crmDrawerOpen ? 'contained' : 'outlined'}
+            onClick={() => setCrmDrawerOpen(!crmDrawerOpen)}
+            startIcon={<WorkOutlineIcon sx={{ fontSize: 16 }} />}
+            sx={{
+              borderRadius: '20px',
+              textTransform: 'none',
+              fontWeight: 600,
+              fontSize: '0.8125rem',
+              color: crmDrawerOpen ? '#fff' : '#f97316',
+              borderColor: '#f97316',
+              backgroundColor: crmDrawerOpen ? '#f97316' : 'transparent',
+              '&:hover': {
+                backgroundColor: crmDrawerOpen ? '#ea580c' : 'rgba(249, 115, 22, 0.08)',
+                borderColor: '#ea580c',
+              },
+            }}
+          >
+            {deal ? 'Streak CRM' : '+ Streak'}
+          </Button>
+
           <Tooltip title="Print">
             <IconButton size="small" onClick={handlePrint} sx={{ color: theme.palette.text.secondary }}>
               <PrintOutlinedIcon fontSize="small" />
@@ -374,15 +533,279 @@ export default function MailReader({
         </Box>
       </Box>
 
-      {/* Message Content Container */}
-      <Box
-        sx={{
-          flex: 1,
-          overflowY: 'auto',
-          p: { xs: 2, sm: 4 },
-          backgroundColor: theme.palette.background.paper,
-        }}
-      >
+      {/* Main Content & CRM Drawer Container */}
+      <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        {/* Message Content Container */}
+        <Box
+          sx={{
+            flex: 1,
+            overflowY: 'auto',
+            p: { xs: 2, sm: 4 },
+            backgroundColor: theme.palette.background.paper,
+          }}
+        >
+          {/* Streak Email Tracking Summary Bar */}
+          {(isSent || trackingRecord) && (
+            <Box
+              sx={{
+                mb: 3,
+                p: 2,
+                borderRadius: '12px',
+                bgcolor:
+                  trackingRecord && trackingRecord.openCount > 0
+                    ? isDark
+                      ? 'rgba(22, 163, 74, 0.12)'
+                      : '#f0fdf4'
+                    : isDark
+                    ? 'rgba(255, 255, 255, 0.03)'
+                    : '#f8fafd',
+                border: `1px solid ${
+                  trackingRecord && trackingRecord.openCount > 0
+                    ? 'rgba(22, 163, 74, 0.3)'
+                    : theme.palette.divider
+                }`,
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <VisibilityIcon
+                    sx={{
+                      color:
+                        trackingRecord && trackingRecord.openCount > 0
+                          ? '#16a34a'
+                          : theme.palette.text.secondary,
+                      fontSize: 22,
+                    }}
+                  />
+                  <Box>
+                    <Typography
+                      variant="subtitle2"
+                      sx={{
+                        fontWeight: 700,
+                        color:
+                          trackingRecord && trackingRecord.openCount > 0
+                            ? '#16a34a'
+                            : theme.palette.text.secondary,
+                      }}
+                    >
+                      {trackingRecord && trackingRecord.openCount > 0
+                        ? `Streak Tracked: Read ${trackingRecord.openCount} time${
+                            trackingRecord.openCount > 1 ? 's' : ''
+                          }`
+                        : 'Streak Tracked: Not opened yet'}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block' }}>
+                      {trackingRecord?.firstOpenedAt ? (
+                        <>
+                          First read:{' '}
+                          {new Date(trackingRecord.firstOpenedAt).toLocaleString(undefined, {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                          {trackingRecord.lastOpenedAt &&
+                            trackingRecord.lastOpenedAt !== trackingRecord.firstOpenedAt && (
+                              <>
+                                {' '}
+                                • Last read:{' '}
+                                {new Date(trackingRecord.lastOpenedAt).toLocaleString(undefined, {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </>
+                            )}
+                        </>
+                      ) : (
+                        'Awaiting recipient to open this email'
+                      )}
+                    </Typography>
+                  </Box>
+                </Box>
+                {trackingRecord && trackingRecord.opens && trackingRecord.opens.length > 0 && (
+                  <Button
+                    size="small"
+                    onClick={() => setTrackingTimelineOpen(!trackingTimelineOpen)}
+                    endIcon={trackingTimelineOpen ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
+                    sx={{ textTransform: 'none', color: '#16a34a', fontWeight: 600 }}
+                  >
+                    {trackingTimelineOpen ? 'Hide History' : `View Opens (${trackingRecord.opens.length})`}
+                  </Button>
+                )}
+              </Box>
+
+              {/* Expandable Open Event Timeline */}
+              {trackingTimelineOpen && trackingRecord && trackingRecord.opens && (
+                <Box
+                  sx={{
+                    mt: 2,
+                    pt: 1.5,
+                    borderTop: `1px solid ${
+                      isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'
+                    }`,
+                  }}
+                >
+                  <Typography
+                    variant="caption"
+                    sx={{ fontWeight: 600, color: theme.palette.text.secondary, display: 'block', mb: 1 }}
+                  >
+                    OPEN EVENTS TIMELINE:
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.8 }}>
+                    {trackingRecord.opens.map((evt, idx) => (
+                      <Box
+                        key={idx}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          p: 1,
+                          borderRadius: '6px',
+                          bgcolor: isDark ? 'rgba(255,255,255,0.04)' : '#ffffff',
+                          fontSize: '0.75rem',
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#16a34a' }} />
+                          <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                            {new Date(evt.timestamp).toLocaleString(undefined, {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              second: '2-digit',
+                            })}
+                          </Typography>
+                        </Box>
+                        <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                          {evt.ip ? `IP: ${evt.ip}` : 'Direct'}
+                          {evt.userAgent && ` • ${evt.userAgent.split(' ')[0]}`}
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Box>
+                </Box>
+              )}
+            </Box>
+          )}
+
+          {/* Streak CRM Deal / Box Bar */}
+          <Box
+            sx={{
+              mb: 3,
+              p: 1.5,
+              borderRadius: '12px',
+              border: `1px solid ${deal ? 'rgba(249, 115, 22, 0.4)' : theme.palette.divider}`,
+              bgcolor: deal
+                ? isDark
+                  ? 'rgba(249, 115, 22, 0.08)'
+                  : '#fff7ed'
+                : isDark
+                ? 'rgba(255, 255, 255, 0.02)'
+                : 'rgba(0, 0, 0, 0.02)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 1.5,
+            }}
+          >
+            {deal ? (
+              <>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
+                    <WorkOutlineIcon sx={{ color: '#f97316', fontSize: 18 }} />
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#f97316' }}>
+                      {activePipeline?.name || 'Pipeline'}:
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {deal.title}
+                    </Typography>
+                  </Box>
+
+                  {/* 1-click Stage Dropdown */}
+                  <Select
+                    size="small"
+                    value={deal.stageId || activePipeline?.stages[0]?.id || ''}
+                    onChange={(e) => handleStageChange(e.target.value)}
+                    sx={{
+                      height: 30,
+                      fontSize: '0.8125rem',
+                      fontWeight: 600,
+                      borderRadius: '16px',
+                      bgcolor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#ffffff',
+                    }}
+                  >
+                    {activePipeline?.stages.map((st) => (
+                      <MenuItem key={st.id} value={st.id}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: st.color }} />
+                          <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                            {st.name}
+                          </Typography>
+                        </Box>
+                      </MenuItem>
+                    ))}
+                  </Select>
+
+                  {/* Deal Value Chip */}
+                  <Chip
+                    size="small"
+                    label={`$${(deal.dealValue || 0).toLocaleString()}`}
+                    sx={{
+                      fontWeight: 700,
+                      bgcolor: isDark ? 'rgba(22, 163, 74, 0.2)' : '#dcfce7',
+                      color: isDark ? '#4ade80' : '#15803d',
+                      fontSize: '0.75rem',
+                      height: 24,
+                    }}
+                  />
+                </Box>
+
+                <Button
+                  size="small"
+                  onClick={() => setCrmDrawerOpen(!crmDrawerOpen)}
+                  startIcon={<ViewSidebarOutlinedIcon sx={{ fontSize: 16 }} />}
+                  sx={{ textTransform: 'none', color: '#f97316', fontWeight: 600, fontSize: '0.8125rem' }}
+                >
+                  {crmDrawerOpen ? 'Close CRM Drawer' : 'Open CRM Drawer'}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <WorkOutlineIcon sx={{ color: theme.palette.text.secondary, fontSize: 18 }} />
+                  <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                    Not tracked in any sales pipeline.
+                  </Typography>
+                </Box>
+                <Button
+                  size="small"
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={() => {
+                    setNewDealTitle(message.subject || '');
+                    setNewDealValue('0');
+                    setAddDealOpen(true);
+                  }}
+                  sx={{
+                    bgcolor: '#f97316',
+                    '&:hover': { bgcolor: '#ea580c' },
+                    textTransform: 'none',
+                    borderRadius: '16px',
+                    fontWeight: 600,
+                    fontSize: '0.8125rem',
+                    py: 0.3,
+                  }}
+                >
+                  + Add to Pipeline
+                </Button>
+              </>
+            )}
+          </Box>
         {/* Subject Header */}
         <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 3 }}>
           <Typography
@@ -734,6 +1157,109 @@ export default function MailReader({
           </Button>
         </Box>
       </Box>
+
+      {/* Streak CRM Sidebar Drawer */}
+      <CrmSidebar
+        open={crmDrawerOpen}
+        onClose={() => setCrmDrawerOpen(false)}
+        deal={deal}
+        pipeline={activePipeline}
+        trackingRecord={trackingRecord}
+        onUpdateDeal={(updated) => setDeal(updated)}
+        onCreateDeal={() => {
+          setNewDealTitle(message.subject || '');
+          setNewDealValue('0');
+          setAddDealOpen(true);
+        }}
+      />
+    </Box>
+
+      {/* Add Deal Dialog */}
+      <Dialog
+        open={addDealOpen}
+        onClose={() => setAddDealOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: '20px', p: 1 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <WorkOutlineIcon sx={{ color: '#f97316' }} />
+          Add to Streak CRM Pipeline
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+            <TextField
+              size="small"
+              label="Deal / Box Title"
+              fullWidth
+              value={newDealTitle}
+              onChange={(e) => setNewDealTitle(e.target.value)}
+            />
+            <Box>
+              <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 600, display: 'block', mb: 0.5 }}>
+                Pipeline
+              </Typography>
+              <Select
+                size="small"
+                fullWidth
+                value={newDealPipelineId || pipelines[0]?.id || ''}
+                onChange={(e) => {
+                  const pid = e.target.value;
+                  setNewDealPipelineId(pid);
+                  const p = pipelines.find((item) => item.id === pid);
+                  if (p && p.stages[0]) setNewDealStageId(p.stages[0].id);
+                }}
+              >
+                {pipelines.map((p) => (
+                  <MenuItem key={p.id} value={p.id}>
+                    {p.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </Box>
+            <Box>
+              <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 600, display: 'block', mb: 0.5 }}>
+                Stage
+              </Typography>
+              <Select
+                size="small"
+                fullWidth
+                value={newDealStageId || activePipeline?.stages[0]?.id || ''}
+                onChange={(e) => setNewDealStageId(e.target.value)}
+              >
+                {(pipelines.find((p) => p.id === newDealPipelineId)?.stages || activePipeline?.stages || []).map((st) => (
+                  <MenuItem key={st.id} value={st.id}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: st.color }} />
+                      <Typography variant="body2">{st.name}</Typography>
+                    </Box>
+                  </MenuItem>
+                ))}
+              </Select>
+            </Box>
+            <TextField
+              size="small"
+              label="Deal Value ($ USD)"
+              type="number"
+              fullWidth
+              value={newDealValue}
+              onChange={(e) => setNewDealValue(e.target.value)}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setAddDealOpen(false)} sx={{ borderRadius: '16px' }}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleCreateDealSubmit}
+            variant="contained"
+            sx={{ bgcolor: '#f97316', '&:hover': { bgcolor: '#ea580c' }, borderRadius: '16px' }}
+          >
+            Create Box
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Security Details Dialog */}
       <Dialog

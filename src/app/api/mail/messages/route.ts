@@ -63,7 +63,8 @@ export async function GET(request: NextRequest) {
             unread,
             starred,
             size: msg.size || 0,
-            snippet: subject
+            snippet: subject,
+            messageId: msg.envelope?.messageId || undefined
           });
         }
       }
