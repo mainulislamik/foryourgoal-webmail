@@ -98,6 +98,7 @@ interface DockedComposeProps {
   }) => void;
   signature?: string;
   onOpenSettings?: () => void;
+  user?: { email: string; displayName?: string; avatarUrl?: string } | null;
 }
 
 export default function DockedCompose({
@@ -106,6 +107,7 @@ export default function DockedCompose({
   onSend,
   signature = '',
   onOpenSettings,
+  user,
 }: DockedComposeProps) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -599,6 +601,33 @@ export default function DockedCompose({
                 </Box>
               </Box>
             )}
+
+            {/* From Row (Gmail Authentic) */}
+            {user && (
+              <Box
+                sx={{
+                  px: 2,
+                  py: 0.75,
+                  display: 'flex',
+                  alignItems: 'center',
+                  borderBottom: `1px solid ${theme.palette.divider}`,
+                }}
+              >
+                <Typography variant="body2" sx={{ color: theme.palette.text.secondary, width: 44, fontWeight: 500, flexShrink: 0 }}>
+                  From
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 500, color: theme.palette.text.primary, fontSize: '0.875rem' }}>
+                    {user.displayName || user.email.split('@')[0]}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: theme.palette.text.secondary, fontSize: '0.8125rem' }}>
+                    &lt;{user.email}&gt;
+                  </Typography>
+                  <ArrowDropDownIcon sx={{ fontSize: 18, color: theme.palette.text.secondary, ml: -0.5 }} />
+                </Box>
+              </Box>
+            )}
+
             {/* Recipients (To) Row */}
             <Box
               sx={{

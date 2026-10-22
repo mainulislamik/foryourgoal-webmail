@@ -487,6 +487,7 @@ export default function MailAppPage() {
         onSend={handleSendMail}
         signature={signature}
         onOpenSettings={() => setSettingsOpen(true)}
+        user={user}
       />
 
       {/* Profile & Avatar Settings Modal */}
