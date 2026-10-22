@@ -45,8 +45,11 @@ export async function POST(request: NextRequest) {
         }))
       : undefined;
 
-    // Build custom headers for priority and read receipts
-    const customHeaders: Record<string, string> = {};
+    // Build custom headers for priority, read receipts, and unsubscribe
+    const customHeaders: Record<string, string> = {
+      'List-Unsubscribe': '<mailto:support@foryourgoal.com?subject=unsubscribe>',
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    };
     if (priority === 'high' || priority === 'urgent') {
       customHeaders['X-Priority'] = '1';
       customHeaders['Importance'] = 'high';
@@ -74,6 +77,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const htmlContent = html || (text ? `<div style="font-family: sans-serif; font-size: 14px; color: #202124;">${text.replace(/\n/g, '<br/>')}</div>` : '');
+
     // Send email via SMTP
     const info = await sendEmail(session, {
       to,
@@ -81,7 +86,7 @@ export async function POST(request: NextRequest) {
       bcc,
       subject: subject || '(no subject)',
       text,
-      html: html || (text ? `<div style="font-family: sans-serif; font-size: 14px; color: #202124;">${text.replace(/\n/g, '<br/>')}</div>` : ''),
+      html: htmlContent,
       attachments: formattedAttachments,
       headers: Object.keys(customHeaders).length > 0 ? customHeaders : undefined,
     });
@@ -101,18 +106,57 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Optionally append to Sent mailbox
+    // Append to Sent mailbox
     try {
+      const MailComposer = require('nodemailer/lib/mail-composer');
+      const fromAddress = session.displayName
+        ? `"${session.displayName}" <${session.email}>`
+        : session.email;
+
+      const mailOptions = {
+        from: fromAddress,
+        to,
+        cc,
+        bcc,
+        subject: subject || '(no subject)',
+        text,
+        html: htmlContent,
+        messageId: info.messageId,
+        date: new Date(),
+        attachments: formattedAttachments,
+        headers: customHeaders,
+      };
+
+      const rawBuffer = await new Promise<Buffer>((resolve, reject) => {
+        new MailComposer(mailOptions).compile().build((err: any, message: Buffer) => {
+          if (err) reject(err);
+          else resolve(message);
+        });
+      });
+
       const client = createImapClient(session);
-      await client.connect();
-      // Find Sent folder
-      const mailboxes = await client.list();
-      const sentBox = mailboxes.find(m => m.specialUse === '\\Sent' || m.path.toLowerCase() === 'sent');
-      if (sentBox) {
-        // Simple raw message append if needed
+      try {
+        await client.connect();
+        // Find Sent folder
+        const mailboxes = await client.list();
+        const sentBox = mailboxes.find(
+          (m) =>
+            m.specialUse === '\\Sent' ||
+            m.path.toLowerCase() === 'sent' ||
+            m.name.toLowerCase() === 'sent'
+        );
+        if (sentBox) {
+          await client.append(sentBox.path, rawBuffer, ['\\Seen']);
+        }
+      } finally {
+        try {
+          await client.logout();
+        } catch {
+          // ignore logout error
+        }
       }
-      await client.logout();
     } catch (e) {
+      console.error('Failed to append to Sent mailbox:', e);
       // Non-fatal if append fails
     }
 

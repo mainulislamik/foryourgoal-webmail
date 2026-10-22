@@ -156,6 +156,46 @@ export default function MailList({
     return map;
   }, [messages]);
 
+  const getEmptyState = () => {
+    const folder = (currentFolder || '').toLowerCase();
+    if (folder.includes('sent')) {
+      return {
+        title: 'No sent messages',
+        subtitle: 'Messages you send will appear here.',
+      };
+    }
+    if (folder.includes('draft')) {
+      return {
+        title: 'No drafts',
+        subtitle: 'Saved draft messages will appear here.',
+      };
+    }
+    if (folder.includes('trash') || folder.includes('bin')) {
+      return {
+        title: 'Trash is empty',
+        subtitle: 'Deleted messages will appear here.',
+      };
+    }
+    if (folder.includes('spam') || folder.includes('junk')) {
+      return {
+        title: 'No spam messages',
+        subtitle: 'Hooray, no spam here!',
+      };
+    }
+    if (folder.includes('star')) {
+      return {
+        title: 'No starred messages',
+        subtitle: 'Starred messages will appear here.',
+      };
+    }
+    return {
+      title: 'Your inbox is empty',
+      subtitle: 'When you receive emails, they will appear here.',
+    };
+  };
+
+  const emptyState = getEmptyState();
+
   return (
     <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       {/* Top Toolbar */}
@@ -342,9 +382,12 @@ export default function MailList({
             <CircularProgress size={36} sx={{ color: theme.palette.primary.main }} />
           </Box>
         ) : messages.length === 0 ? (
-          <Box sx={{ textAlign: 'center', py: 10 }}>
-            <Typography variant="body1" sx={{ color: theme.palette.text.secondary }}>
-              Your inbox is empty
+          <Box sx={{ textAlign: 'center', py: 10, px: 2 }}>
+            <Typography variant="body1" sx={{ color: theme.palette.text.primary, fontWeight: 500, mb: 0.5 }}>
+              {emptyState.title}
+            </Typography>
+            <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+              {emptyState.subtitle}
             </Typography>
           </Box>
         ) : (
