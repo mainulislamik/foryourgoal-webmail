@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
+import { getForYourGoalSignatureTemplate } from '@/lib/signature';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -18,14 +19,19 @@ export async function GET(request: NextRequest) {
     try {
       const data = await fs.readFile(filePath, 'utf-8');
       const parsed = JSON.parse(data);
+      let signature = parsed.signature || '';
+      if (signature.includes('https://foryourgoal.com/images/foryourgoal-logo.png')) {
+        signature = signature.replace(/https:\/\/foryourgoal\.com\/images\/foryourgoal-logo\.png/g, 'https://mail.foryourgoal.com/images/foryourgoal-logo.png');
+      }
       return NextResponse.json({
         email: session.email,
-        signature: parsed.signature || '',
+        signature: signature,
         updatedAt: parsed.updatedAt || null,
       });
     } catch (e: any) {
       if (e.code === 'ENOENT') {
-        return NextResponse.json({ email: session.email, signature: '', updatedAt: null });
+        const defaultSig = getForYourGoalSignatureTemplate(session.displayName, session.email);
+        return NextResponse.json({ email: session.email, signature: defaultSig, updatedAt: null });
       }
       throw e;
     }

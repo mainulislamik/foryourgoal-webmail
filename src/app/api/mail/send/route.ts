@@ -27,6 +27,9 @@ export async function POST(request: NextRequest) {
       trackEmail,
     } = body;
     let html = htmlField || bodyField;
+    if (html && typeof html === 'string') {
+      html = html.replace(/https:\/\/foryourgoal\.com\/images\/foryourgoal-logo\.png/g, 'https://mail.foryourgoal.com/images/foryourgoal-logo.png');
+    }
 
     if (!to || (!subject && !text && !html && !bodyField)) {
       return NextResponse.json({ error: 'Recipient and content are required' }, { status: 400 });
