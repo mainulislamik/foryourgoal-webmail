@@ -133,6 +133,32 @@ export default function SettingsDialog({
   const [imageUrl, setImageUrl] = useState('');
   const [imageUploadLoading, setImageUploadLoading] = useState(false);
 
+  // External images privacy setting
+  const [alwaysLoadImages, setAlwaysLoadImages] = useState<boolean>(true);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('webmail_always_load_images');
+        if (stored !== null) {
+          setAlwaysLoadImages(stored !== 'false');
+        } else {
+          setAlwaysLoadImages(true);
+        }
+      } catch (e) {}
+    }
+  }, []);
+
+  const handleToggleAlwaysLoadImages = (checked: boolean) => {
+    setAlwaysLoadImages(checked);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('webmail_always_load_images', checked ? 'true' : 'false');
+        window.dispatchEvent(new CustomEvent('webmail_settings_changed', { detail: { alwaysLoadImages: checked } }));
+      } catch (e) {}
+    }
+  };
+
   // Color Popover
   const [colorAnchor, setColorAnchor] = useState<HTMLElement | null>(null);
 
@@ -725,6 +751,36 @@ export default function SettingsDialog({
                     Click camera icon to upload a custom profile picture (PNG, JPG, WebP).
                   </Typography>
                 </Box>
+              </Box>
+
+              <Divider sx={{ my: 0.5 }} />
+
+              <Box
+                sx={{
+                  p: 2.5,
+                  borderRadius: '16px',
+                  border: `1px solid ${theme.palette.divider}`,
+                  backgroundColor: isDark ? '#2b2d30' : '#f8fafd',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 2,
+                }}
+              >
+                <Box sx={{ pr: 2 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
+                    Always display external images
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mt: 0.5 }}>
+                    Automatically load remote images and email tracking pixels
+                  </Typography>
+                </Box>
+                <Switch
+                  checked={alwaysLoadImages}
+                  onChange={(e) => handleToggleAlwaysLoadImages(e.target.checked)}
+                  color="primary"
+                  id="settings-always-load-images-switch"
+                />
               </Box>
             </Box>
           )}

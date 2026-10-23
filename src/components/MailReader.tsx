@@ -108,7 +108,34 @@ export default function MailReader({
   const [moveAnchor, setMoveAnchor] = useState<null | HTMLElement>(null);
   const [securityOpen, setSecurityOpen] = useState(false);
   const [snoozeAnchor, setSnoozeAnchor] = useState<null | HTMLElement>(null);
-  const [showExternalImages, setShowExternalImages] = useState(false);
+  const [showExternalImages, setShowExternalImages] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('webmail_always_load_images');
+        return stored !== 'false';
+      } catch (e) {
+        return true;
+      }
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    const handleSettingsChanged = () => {
+      try {
+        const stored = localStorage.getItem('webmail_always_load_images');
+        setShowExternalImages(stored !== 'false');
+      } catch (e) {}
+    };
+
+    window.addEventListener('webmail_settings_changed', handleSettingsChanged);
+    window.addEventListener('storage', handleSettingsChanged);
+
+    return () => {
+      window.removeEventListener('webmail_settings_changed', handleSettingsChanged);
+      window.removeEventListener('storage', handleSettingsChanged);
+    };
+  }, []);
   const [rsvpStatus, setRsvpStatus] = useState<'none' | 'accepted' | 'maybe' | 'declined'>('none');
   const [blockedSenders, setBlockedSenders] = useState<string[]>([]);
 
