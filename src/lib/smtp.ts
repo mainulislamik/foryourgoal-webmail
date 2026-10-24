@@ -10,8 +10,11 @@ export interface SendMailOptions {
   html?: string;
   attachments?: {
     filename: string;
-    content: string | Buffer;
+    content?: string | Buffer;
+    path?: string;
     contentType?: string;
+    cid?: string;
+    contentDisposition?: 'attachment' | 'inline';
   }[];
   headers?: Record<string, string>;
 }

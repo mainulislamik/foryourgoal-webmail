@@ -4,6 +4,8 @@ import { sendEmail } from '@/lib/smtp';
 import { createImapClient } from '@/lib/imap';
 import { createTrackingRecord } from '@/lib/tracking';
 import crypto from 'crypto';
+import path from 'path';
+import fs from 'fs';
 
 export async function POST(request: NextRequest) {
   const session = await getSession();
@@ -27,16 +29,13 @@ export async function POST(request: NextRequest) {
       trackEmail,
     } = body;
     let html = htmlField || bodyField;
-    if (html && typeof html === 'string') {
-      html = html.replace(/https:\/\/foryourgoal\.com\/images\/foryourgoal-logo\.png/g, 'https://mail.foryourgoal.com/images/foryourgoal-logo.png');
-    }
 
     if (!to || (!subject && !text && !html && !bodyField)) {
       return NextResponse.json({ error: 'Recipient and content are required' }, { status: 400 });
     }
 
     // Format attachments if provided
-    const formattedAttachments = Array.isArray(attachments)
+    const formattedAttachments: any[] = Array.isArray(attachments)
       ? attachments.map((att: any) => ({
           filename: att.filename,
           content: typeof att.content === 'string' && att.content.includes(';base64,')
@@ -45,8 +44,31 @@ export async function POST(request: NextRequest) {
             ? Buffer.from(att.content, 'base64')
             : att.content,
           contentType: att.contentType,
+          cid: att.cid,
+          contentDisposition: att.contentDisposition || 'attachment',
         }))
-      : undefined;
+      : [];
+
+    // Auto CID inline embedding for ForYourGoal logo in HTML emails
+    if (html && typeof html === 'string') {
+      const logoUrlRegex = /https?:\/\/(mail\.)?foryourgoal\.com\/images\/foryourgoal-logo\.png/gi;
+      if (logoUrlRegex.test(html)) {
+        const logoPath = path.join(process.cwd(), 'public', 'images', 'foryourgoal-logo.png');
+        if (fs.existsSync(logoPath)) {
+          const logoBuffer = fs.readFileSync(logoPath);
+          html = html.replace(logoUrlRegex, 'cid:foryourgoal-logo@foryourgoal.com');
+          formattedAttachments.push({
+            filename: 'foryourgoal-logo.png',
+            content: logoBuffer,
+            contentType: 'image/png',
+            cid: 'foryourgoal-logo@foryourgoal.com',
+            contentDisposition: 'inline',
+          });
+        } else {
+          html = html.replace(/https:\/\/foryourgoal\.com\/images\/foryourgoal-logo\.png/g, 'https://mail.foryourgoal.com/images/foryourgoal-logo.png');
+        }
+      }
+    }
 
     // Build custom headers for priority, read receipts, and unsubscribe
     const customHeaders: Record<string, string> = {
@@ -83,14 +105,14 @@ export async function POST(request: NextRequest) {
     const htmlContent = html || (text ? `<div style="font-family: sans-serif; font-size: 14px; color: #202124;">${text.replace(/\n/g, '<br/>')}</div>` : '');
 
     // Send email via SMTP
-    const info = await sendEmail(session, {
+    const info: any = await sendEmail(session, {
       to,
       cc,
       bcc,
       subject: subject || '(no subject)',
       text,
       html: htmlContent,
-      attachments: formattedAttachments,
+      attachments: formattedAttachments.length > 0 ? formattedAttachments : undefined,
       headers: Object.keys(customHeaders).length > 0 ? customHeaders : undefined,
     });
 
@@ -126,7 +148,7 @@ export async function POST(request: NextRequest) {
         html: htmlContent,
         messageId: info.messageId,
         date: new Date(),
-        attachments: formattedAttachments,
+        attachments: formattedAttachments.length > 0 ? formattedAttachments : undefined,
         headers: customHeaders,
       };
 
